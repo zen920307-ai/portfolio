@@ -1864,3 +1864,264 @@ main { position: relative; }
   .chapter-action::after,
   .nav-rail { transition: none; }
 }
+
+/* ============================================================
+   Mobile adaptation — consolidated layer
+   Targets: navigation overlap, cramped chapter panels,
+   tiny modal media, hard-to-tap controls, ultra-narrow phones.
+   Kept as a single tail block so it overrides the scattered
+   per-section responsive rules above via source order + specificity.
+   ============================================================ */
+
+/* ---- Breakpoint: ≤ 760px (phones / small tablets portrait) ---- */
+@media (max-width: 760px) {
+  :root { --safe: 16px; }
+
+  /* Shell locks to 6×100svh; ensure mobile browsers don't overscroll white. */
+  html, body { background: #050505; }
+  .portfolio-shell,
+  .portfolio-shell > main { height: 600svh; min-height: 600svh; max-height: 600svh; }
+
+  /* Each chapter becomes a scrollable flex column so content never overflows. */
+  .chapter {
+    height: 100svh;
+    max-height: 100svh;
+    padding: 72px 16px 64px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---- Left navigation collapses to a slim icon rail ---- */
+  .chapter-nav {
+    top: 14px;
+    left: 12px;
+    width: 52px;
+    gap: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .chapter-nav .nav-brand,
+  .chapter-nav .nav-footer,
+  .chapter-nav .nav-state,
+  .chapter-nav .nav-label small { display: none; }
+  .chapter-nav .nav-item {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: 38px;
+    padding: 6px 0;
+    gap: 0;
+  }
+  .chapter-nav .nav-label { display: none; }
+  .chapter-nav .nav-item::before { left: 50%; transform: translate(-50%, -50%); }
+  .chapter-nav .nav-index { font-size: 10px; }
+
+  /* Page index dot moves to a safe corner so it won't collide with nav. */
+  .chapter-index {
+    left: auto;
+    right: 16px;
+    bottom: 20px;
+    gap: 6px;
+  }
+  .chapter-index strong { font-size: 34px; }
+  .chapter-index span { font-size: 8px; }
+
+  /* Bottom scene guide stays centered but narrower. */
+  .scene-guide { width: 64vw; bottom: 16px; }
+
+  /* ---- Chapter copy / scene headings: readable, not clipped ---- */
+  .chapter-copy,
+  .chapter-about .chapter-copy { width: calc(100vw - 96px); max-width: 360px; }
+  .chapter-copy h1 { font-size: clamp(34px, 9vw, 46px); }
+  .chapter-copy h2 { font-size: clamp(26px, 7vw, 34px); }
+  .chapter-copy .chapter-summary,
+  .chapter-summary--lead { font-size: 12.5px; line-height: 1.65; max-width: 100%; }
+
+  .scene-heading h2 { font-size: clamp(26px, 7vw, 34px); line-height: 1.08; }
+  .scene-heading > p:last-child { font-size: 12px; line-height: 1.6; }
+
+  /* Positional panels drop the desktop left-offset and fill width. */
+  .experience-panel,
+  .projects-panel,
+  .vibe-showcase,
+  .graphic-panel,
+  .system-screen-ui {
+    top: 64px;
+    right: 16px;
+    left: 80px;
+    bottom: auto;
+    width: auto;
+    height: auto;
+    transform: none;
+    padding: 0;
+  }
+  .vibe-showcase { left: 50%; right: auto; width: calc(100vw - 96px); transform: translateX(-50%); }
+  .system-screen-ui {
+    left: 50%;
+    top: 64px;
+    transform: translateX(-50%);
+    width: calc(100vw - 92px);
+    height: auto;
+    min-height: 62vh;
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  /* ---- About (01) ---- */
+  .chapter-about .chapter-copy { right: 16px; }
+  .chapter-about .micro-content-list--stats { grid-template-columns: 1fr 1fr; }
+  .chapter-about .micro-content-list--stats button { min-height: 60px; padding: 10px 8px 10px 0; }
+  .chapter-about .micro-content-list--stats button > strong { font-size: 22px; }
+  .motion-hint { display: none; }
+
+  /* ---- Experience (02) ---- */
+  .experience-card-grid { grid-template-columns: 1fr; gap: 8px; margin-top: 16px; }
+  .experience-card { min-height: 0; padding: 12px; }
+  .experience-card p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* ---- System (03) ---- */
+  .system-screen-ui__header { grid-template-columns: 1fr; gap: 6px; padding: 0 0 8px; }
+  .system-screen-ui__header .system-status { display: none; }
+  .system-screen-ui__body { grid-template-columns: 1fr; grid-template-rows: 1fr auto; padding-top: 8px; }
+  .system-strip-stage { min-height: 180px; }
+  .vertical-strip__track button,
+  .vertical-strip__track img { height: 92px; min-height: 92px; }
+  .system-module-console { grid-template-rows: auto auto; }
+  .system-module-summary { min-height: 0; padding: 10px; }
+  .system-module-summary > span { font-size: 26px; }
+  .system-module-summary h3 { font-size: 16px; }
+  .system-module-summary p { font-size: 11px; }
+  .system-screen-tabs { display: flex; overflow-x: auto; scrollbar-width: none; grid-template-rows: none; }
+  .system-screen-tabs::-webkit-scrollbar { display: none; }
+  .system-screen-tabs button { flex: 0 0 110px; min-height: 56px; }
+  .system-strip-stage__hint { font-size: 6px; padding: 6px 8px; }
+
+  /* ---- Projects (04) ---- */
+  .project-cover-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    height: auto;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .project-cover-card { min-height: 0; grid-template-columns: 38% 62%; }
+  .project-cover-card:first-child { grid-row: auto; }
+  .project-cover-card img { height: 110px; }
+  .project-cover-card__copy { padding: 10px; }
+  .project-cover-card__copy h3 { font-size: 14px; }
+  .project-cover-card:first-child .project-cover-card__copy h3 { font-size: 18px; }
+
+  /* ---- Graphic (05) ---- */
+  .graphic-panel { grid-template-columns: 1fr; gap: 12px; }
+  .graphic-panel .scene-heading { max-width: 100%; margin-left: 0; }
+  .graphic-panel .scene-heading h2 { white-space: normal; }
+  .graphic-panel .scene-heading > p:last-of-type { display: block; }
+  .graphic-loop { height: 52vh; min-height: 320px; }
+  .graphic-loop__columns { gap: 6px; }
+  .graphic-slide > span { padding: 6px; }
+  .graphic-slide strong { font-size: 11px; }
+
+  /* ---- Vibe (06) ---- */
+  .vibe-showcase .scene-heading h2 { white-space: normal; }
+  .vibe-card-row { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .vibe-preview-card > div { padding: 10px; }
+  .vibe-preview-card h3 { font-size: 13px; }
+  .vibe-preview-card p { display: none; }
+  .vibe-card-actions { gap: 6px; margin-top: 8px; }
+  .vibe-btn-detail, .vibe-btn-visit { min-height: 28px; padding: 6px 8px; font-size: 9px; }
+  .chapter-vibe .final-credit { left: 16px; right: 16px; bottom: 14px; font-size: 8px; }
+
+  /* ---- Detail overlay / lightboxes ---- */
+  .detail-overlay {
+    grid-template-columns: 1fr;
+    grid-template-rows: 36vh 1fr;
+  }
+  .detail-gallery { padding: 8px; }
+  .detail-gallery__columns { gap: 6px; }
+  .detail-gallery__track button { height: 96px; }
+  .detail-copy { padding: 22px 18px 80px; }
+  .detail-copy h2 { font-size: 30px; }
+  .detail-lead { font-size: 13px; }
+  .detail-metrics { grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; }
+  .detail-metrics span { padding: 10px 4px; }
+  .detail-metrics strong { font-size: 22px; }
+  .detail-notes article { grid-template-columns: 24px 1fr; gap: 8px; padding: 12px 0; }
+  .detail-notes article p { font-size: 11px; }
+
+  .info-overlay {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 60px 18px 60px 18px;
+  }
+  .info-overlay__header h2 { font-size: 30px; }
+  .info-overlay__close { top: 18px; right: 18px; }
+
+  .system-preview-lightbox,
+  .project-image-lightbox,
+  .work-lightbox { padding: 6vh 5vw; }
+  .system-preview-lightbox figure { width: 100%; height: auto; max-height: 80vh; }
+  .system-preview-lightbox img { max-height: 60vh; }
+  .work-lightbox img { max-width: 92vw; max-height: 72vh; }
+
+  .vibe-detail-overlay { padding: 0 !important; }
+  .vibe-case__media { width: calc(100% - 24px); margin: 48px auto 0; max-height: 32vh; }
+  .vibe-case__title h3 { font-size: 22px; }
+  .vibe-case__content { padding: 0 16px 48px; }
+  .vibe-case__main { padding-right: 0; }
+  .vibe-case__side { padding-left: 0; border-left: 0; border-top: 1px solid rgba(255,255,255,.08); margin-top: 8px; padding-top: 0; }
+  .vibe-case__side .vibe-case__block:first-child { padding-top: 20px; }
+  .vibe-case__block p { font-size: 13px; line-height: 1.7; }
+
+  /* Identity badge scales down further so it never covers content. */
+  .identity-badge { right: 10px; top: 14px; transform: scale(.7); transform-origin: top right; }
+  .identity-badge__drop { left: 50%; margin-left: -130px; }
+}
+
+/* ---- Breakpoint: ≤ 480px (small phones) ---- */
+@media (max-width: 480px) {
+  :root { --safe: 12px; }
+
+  .chapter { padding: 64px 12px 56px; }
+
+  /* Nav shrinks to dots only. */
+  .chapter-nav { left: 8px; width: 28px; }
+  .chapter-nav .nav-index { font-size: 9px; }
+
+  /* Panels use the full width minus the tiny nav. */
+  .experience-panel,
+  .projects-panel,
+  .graphic-panel,
+  .system-screen-ui { left: 48px; right: 12px; transform: none; }
+  .system-screen-ui { left: 50%; transform: translateX(-50%); width: calc(100vw - 60px); }
+  .vibe-showcase { width: calc(100vw - 60px); }
+
+  .chapter-index strong { font-size: 28px; }
+
+  /* Vibe cards stack to a single column for legibility. */
+  .vibe-card-row { grid-template-columns: 1fr; }
+
+  /* Project detail metrics collapse to single column. */
+  .detail-metrics { grid-template-columns: 1fr; }
+
+  /* Identity badge hides the trigger copy to save space. */
+  .identity-badge__trigger { min-width: 72px; padding: 8px 10px; }
+  .identity-badge__trigger span { font-size: 8px; }
+  .identity-badge__trigger em { display: none; }
+
+  /* WeChat QR modal fills the screen. */
+  .wechat-qr-modal { padding: 24px 20px; gap: 14px; }
+  .wechat-qr-modal img { width: min(220px, 64vw); }
+
+  .final-credit { font-size: 7px; gap: 8px; }
+}
+
+/* ---- Landscape phone: ensure short viewports don't clip content ---- */
+@media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
+  .chapter { padding: 56px 16px 48px; }
+  .chapter-nav { top: 12px; }
+  .scene-guide { bottom: 10px; }
+  .system-screen-ui { min-height: 70vh; }
+}

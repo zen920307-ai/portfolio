@@ -915,18 +915,82 @@ export function App() {
     };
   }, []);
 
+  const prevChapterRef = useRef(0);
+
   useLayoutEffect(() => {
     const context = gsap.context(() => {
       const allItems = gsap.utils.toArray(".chapter .motion-item");
       const activeItems = gsap.utils.toArray(`.chapter[data-chapter="${activeChapter}"] .motion-item`);
       const inactiveItems = allItems.filter((item) => !activeItems.includes(item));
       gsap.killTweensOf(allItems);
-      gsap.set(inactiveItems, { autoAlpha: 0, y: 18 });
-      gsap.fromTo(
-        activeItems,
-        { autoAlpha: 0, y: 24 },
-        { autoAlpha: 1, y: 0, duration: 0.72, stagger: 0.09, ease: "power3.out", overwrite: "auto" },
-      );
+
+      // Direction vector per element, based on its position inside the chapter.
+      // Items on the left fly in from the left, right items from the right,
+      // centered items drop in from above. This gives every page a composed,
+      // spatial entrance instead of a uniform slide.
+      const directionFor = (el, chapterEl) => {
+        if (!chapterEl) return { x: 0, y: -28 };
+        const cr = chapterEl.getBoundingClientRect();
+        const er = el.getBoundingClientRect();
+        const cx = (er.left + er.right) / 2 - cr.left;
+        const cy = (er.top + er.bottom) / 2 - cr.top;
+        const nx = cr.width ? (cx / cr.width) - 0.5 : 0; // -0.5..0.5
+        const ny = cr.height ? (cy / cr.height) - 0.5 : 0;
+        const dist = Math.sqrt(nx * nx + ny * ny) || 1;
+        // Horizontal bias dominates for off-center items.
+        const x = Math.abs(nx) > 0.18 ? Math.sign(nx) * 46 : 0;
+        const y = x === 0 ? (cy < cr.height * 0.5 ? -34 : 34) : ny * 30;
+        return { x, y };
+      };
+
+      const prevChapter = prevChapterRef.current;
+      const prevChapterEl = shellRef.current?.querySelector(`.chapter[data-chapter="${prevChapter}"]`);
+      const prevItems = prevChapterEl
+        ? gsap.utils.toArray(prevChapterEl.querySelectorAll(".motion-item"))
+        : [];
+
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+
+      // EXIT previous chapter: quick scatter-out (fade + drift + blur + shrink).
+      if (prevItems.length && prevChapter !== activeChapter) {
+        prevItems.forEach((el) => {
+          const d = directionFor(el, prevChapterEl);
+          tl.to(el, {
+            autoAlpha: 0,
+            x: d.x * 0.6,
+            y: d.y * 0.6,
+            scale: 0.96,
+            filter: "blur(6px)",
+            duration: 0.3,
+            ease: "power2.in",
+            overwrite: "auto",
+          }, 0);
+        });
+        // Make sure non-active, non-prev items stay hidden too.
+        const others = inactiveItems.filter((el) => !prevItems.includes(el));
+        gsap.set(others, { autoAlpha: 0, x: 0, y: 0, scale: 1, filter: "blur(0px)" });
+      } else {
+        gsap.set(inactiveItems, { autoAlpha: 0, x: 0, y: 0, scale: 1, filter: "blur(0px)" });
+      }
+
+      // ENTER active chapter: directional fly-in with light back-out + blur->sharp.
+      const activeChapterEl = shellRef.current?.querySelector(`.chapter[data-chapter="${activeChapter}"]`);
+      activeItems.forEach((el, i) => {
+        const d = directionFor(el, activeChapterEl);
+        gsap.set(el, { autoAlpha: 0, x: d.x, y: d.y, scale: 0.96, filter: "blur(8px)" });
+        tl.to(el, {
+          autoAlpha: 1,
+          x: 0,
+          y: 0,
+          scale: 1,
+          filter: "blur(0px)",
+          duration: 0.5,
+          ease: "back.out(1.4)",
+          overwrite: "auto",
+        }, prevItems.length && prevChapter !== activeChapter ? 0.22 : 0);
+      });
+
+      prevChapterRef.current = activeChapter;
     }, shellRef);
     return () => context.revert();
   }, [activeChapter]);
