@@ -985,8 +985,8 @@ main { position: relative; }
 .vibe-preview-card p { min-height: 31px; margin: 0; color: rgba(255,255,255,.58); font-size: 10px; line-height: 1.5; }
 .vibe-preview-card > div > button { width: 100%; min-height: 34px; margin-top: 12px; border: 1px solid rgba(255,255,255,.28); background: transparent; color: #fff; font-size: 10px; cursor: pointer; transition: background 180ms ease, color 180ms ease; }
 .vibe-preview-card:hover > div > button { background: var(--accent); color: #080808; }
-.chapter-vibe .final-credit { right: 6vw; left: auto; bottom: 3vh; }
-.chapter-vibe .final-credit, .motion-hint { display: none; }
+.chapter-vibe .final-credit { right: 6vw; left: auto; bottom: 3vh; display: flex; }
+.motion-hint { display: none; }
 .vibe-detail-description { margin: 0; padding: 18px; border-bottom: 1px solid var(--line); color: rgba(255,255,255,.7); font-size: 12px; line-height: 1.7; }
 .vibe-overlay .vibe-detail-stage { grid-template-columns: 62% 38%; min-height: 52vh; }
 .vibe-overlay .vibe-detail-preview img { object-fit: contain; background: #050505; }
@@ -1873,6 +1873,9 @@ main { position: relative; }
    per-section responsive rules above via source order + specificity.
    ============================================================ */
 
+/* Desktop / tablet-wide: hamburger hidden, nav stack always visible. */
+.nav-burger { display: none; }
+
 /* ---- Breakpoint: ≤ 760px (phones / small tablets portrait) ---- */
 @media (max-width: 760px) {
   :root { --safe: 16px; }
@@ -1889,14 +1892,23 @@ main { position: relative; }
     padding: 72px 16px 64px;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
+  /* Chapters with absolute scene panels need internal scroll too. */
+  .chapter-experience,
+  .chapter-projects,
+  .chapter-graphic,
+  .chapter-system { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .chapter .scene-panel,
+  .chapter .system-screen-ui,
+  .chapter .chapter-copy { position: relative; top: auto; left: auto; right: auto; bottom: auto; transform: none; }
 
-  /* ---- Left navigation collapses to a slim icon rail ---- */
+  /* ---- Hamburger navigation ---- */
   .chapter-nav {
     top: 14px;
-    left: 12px;
-    width: 52px;
+    left: 14px;
+    width: auto;
     gap: 0;
     background: transparent;
     border: 0;
@@ -1904,20 +1916,92 @@ main { position: relative; }
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .chapter-nav .nav-brand,
-  .chapter-nav .nav-footer,
-  .chapter-nav .nav-state,
-  .chapter-nav .nav-label small { display: none; }
-  .chapter-nav .nav-item {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    min-height: 38px;
-    padding: 6px 0;
-    gap: 0;
+  .nav-burger {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 44px;
+    height: 44px;
+    padding: 11px 10px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 12px;
+    background: rgba(4,6,8,.72);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: 0 14px 40px rgba(0,0,0,.4);
+    cursor: pointer;
+    transition: background .24s ease, border-color .24s ease;
   }
-  .chapter-nav .nav-label { display: none; }
-  .chapter-nav .nav-item::before { left: 50%; transform: translate(-50%, -50%); }
-  .chapter-nav .nav-index { font-size: 10px; }
+  .nav-burger:hover { border-color: var(--accent); }
+  .nav-burger i {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: #fff;
+    border-radius: 2px;
+    transition: transform .28s cubic-bezier(.22,1,.36,1), opacity .2s ease;
+  }
+  .chapter-nav.is-open .nav-burger i:nth-child(1) { transform: translateY(8px) rotate(45deg); }
+  .chapter-nav.is-open .nav-burger i:nth-child(2) { opacity: 0; transform: scaleX(0); }
+  .chapter-nav.is-open .nav-burger i:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
+
+  /* Collapsed: only burger visible. Expanded: full menu list as a glass panel. */
+  .chapter-nav .nav-stack {
+    position: absolute;
+    top: 52px;
+    left: 0;
+    min-width: 220px;
+    display: grid;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 14px;
+    background: rgba(4,6,8,.82);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    box-shadow: 0 24px 70px rgba(0,0,0,.5);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: opacity .24s ease, transform .24s cubic-bezier(.22,1,.36,1), visibility .24s;
+  }
+  .chapter-nav.is-open .nav-stack { opacity: 1; visibility: visible; transform: translateY(0); }
+  .chapter-nav .nav-footer { display: none; }
+
+  .chapter-nav .nav-item {
+    grid-template-columns: 24px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 8px;
+    color: rgba(255,255,255,.62);
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+  }
+  .chapter-nav .nav-item:hover,
+  .chapter-nav .nav-item.is-active {
+    padding-left: 12px;
+    color: #fff;
+    background: rgba(243,198,0,.08);
+    box-shadow: none;
+    transform: none;
+  }
+  .chapter-nav .nav-item.is-active::before {
+    left: 4px;
+    width: 3px;
+    height: 18px;
+    border-radius: 99px;
+  }
+  .chapter-nav .nav-label { display: grid; grid-template-columns: 1fr; gap: 2px; }
+  .chapter-nav .nav-label strong { font-size: 11px; letter-spacing: .08em; }
+  .chapter-nav .nav-label small { display: block; font-size: 10px; color: rgba(255,255,255,.42); }
+  .chapter-nav .nav-item.is-active .nav-label small { color: var(--accent); }
+  .chapter-nav .nav-state { display: none; }
+  .chapter-nav .nav-index { font-size: 10px; color: rgba(255,255,255,.32); }
+  .chapter-nav .nav-item.is-active .nav-index { color: var(--accent); }
 
   /* Page index dot moves to a safe corner so it won't collide with nav. */
   .chapter-index {
@@ -1951,21 +2035,22 @@ main { position: relative; }
   .system-screen-ui {
     top: 64px;
     right: 16px;
-    left: 80px;
+    left: 16px;
     bottom: auto;
     width: auto;
     height: auto;
     transform: none;
     padding: 0;
   }
-  .vibe-showcase { left: 50%; right: auto; width: calc(100vw - 96px); transform: translateX(-50%); }
+  .vibe-showcase { left: 16px; right: 16px; width: auto; transform: none; }
   .system-screen-ui {
-    left: 50%;
+    left: 16px;
+    right: 16px;
     top: 64px;
-    transform: translateX(-50%);
-    width: calc(100vw - 92px);
+    transform: none;
+    width: auto;
     height: auto;
-    min-height: 62vh;
+    min-height: 0;
     padding: 12px;
     border-radius: 14px;
   }
@@ -2025,6 +2110,19 @@ main { position: relative; }
   .graphic-slide strong { font-size: 11px; }
 
   /* ---- Vibe (06) ---- */
+  /* Allow the showcase to scroll internally if it overflows the short viewport,
+     so the page never feels "stuck" with hidden content. */
+  .chapter-vibe { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .chapter-vibe .vibe-showcase {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    transform: none;
+    height: auto;
+    min-height: calc(100svh - 130px);
+    padding-bottom: 72px;
+  }
   .vibe-showcase .scene-heading h2 { white-space: normal; }
   .vibe-card-row { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
   .vibe-preview-card > div { padding: 10px; }
@@ -2032,7 +2130,16 @@ main { position: relative; }
   .vibe-preview-card p { display: none; }
   .vibe-card-actions { gap: 6px; margin-top: 8px; }
   .vibe-btn-detail, .vibe-btn-visit { min-height: 28px; padding: 6px 8px; font-size: 9px; }
-  .chapter-vibe .final-credit { left: 16px; right: 16px; bottom: 14px; font-size: 8px; }
+  .chapter-vibe .final-credit {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin-top: 24px;
+    padding: 12px 0 0;
+    border-top: 1px solid rgba(255,255,255,.1);
+    font-size: 8px;
+  }
 
   /* ---- Detail overlay / lightboxes ---- */
   .detail-overlay {

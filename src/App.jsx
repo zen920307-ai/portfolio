@@ -276,6 +276,12 @@ function CinematicBackdrop() {
   const activeSegment = useRef(0);
   const [visibleSegment, setVisibleSegment] = useState(0);
   const videos = [1, 2, 3, 4, 5];
+  // Mobile browsers (esp. iOS Safari) block JS-driven currentTime scrubbing on
+  // non-playing videos. Detect touch/small-viewport and fall back to a muted
+  // autoplay loop so the background still reads as cinematic motion.
+  const isMobile = typeof window !== "undefined" && (
+    window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 760
+  );
 
   useEffect(() => {
     let frameRequest = 0;
@@ -286,6 +292,22 @@ function CinematicBackdrop() {
       const rawPage = window.scrollY / pageHeight;
       const segment = clamp(Math.floor(rawPage), 0, 4);
       const local = segment === 4 && rawPage >= 5 ? 1 : clamp(rawPage - segment, 0, 1);
+
+      // Mobile: only toggle which video is visible (autoplay handles motion).
+      if (isMobile) {
+        activeSegment.current = segment;
+        setVisibleSegment((current) => current === segment ? current : segment);
+        videoRefs.current.forEach((v, i) => {
+          if (!v) return;
+          if (i === segment) {
+            v.play().catch(() => {});
+          } else {
+            v.pause();
+          }
+        });
+        return;
+      }
+
       targetTimes.current[segment] = frameTimeForProgress(durations.current[segment], FRAME_COUNTS[segment], local);
 
       if (segment > activeSegment.current) {
@@ -329,7 +351,7 @@ function CinematicBackdrop() {
       window.removeEventListener("resize", queueFrame);
       window.cancelAnimationFrame(frameRequest);
     };
-  }, []);
+  }, [isMobile]);
 
   return (
     <div className="cinematic-backdrop" aria-hidden="true">
@@ -340,10 +362,13 @@ function CinematicBackdrop() {
           className={index === visibleSegment ? "background-video is-active" : "background-video"}
           src={`/videos/scroll-0${number}.mp4?v=240`}
           muted
+          loop={isMobile}
           playsInline
+          autoPlay={isMobile}
           preload="auto"
           onLoadedMetadata={(event) => {
             durations.current[index] = event.currentTarget.duration || 5;
+            if (isMobile) return;
             const pageHeight = Math.max(1, window.innerHeight);
             const rawPage = window.scrollY / pageHeight;
             const local = index === 4 && rawPage >= 5 ? 1 : clamp(rawPage - index, 0, 1);
@@ -361,15 +386,32 @@ function CinematicBackdrop() {
 }
 
 function Navigation({ activeChapter, onNavigate }) {
+  const [open, setOpen] = useState(false);
+
+  const handleNavigate = (id) => {
+    onNavigate(id);
+    setOpen(false);
+  };
+
   return (
-    <nav className="chapter-nav" aria-label="作品集章节">
-      <div className="nav-stack">
+    <nav className={`chapter-nav${open ? " is-open" : ""}`} aria-label="作品集章节">
+      <button
+        type="button"
+        className="nav-burger"
+        aria-expanded={open}
+        aria-controls="nav-stack"
+        aria-label={open ? "关闭导航" : "打开导航"}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <i /><i /><i />
+      </button>
+      <div className="nav-stack" id="nav-stack">
         {chapters.map((chapter, index) => (
           <button
             key={chapter.id}
             type="button"
             className={activeChapter === index ? "nav-item is-active" : "nav-item"}
-            onClick={() => onNavigate(chapter.id)}
+            onClick={() => handleNavigate(chapter.id)}
           >
             <span className="nav-rail" aria-hidden="true" />
             <span className="nav-index">{String(index + 1).padStart(2, "0")}</span>
