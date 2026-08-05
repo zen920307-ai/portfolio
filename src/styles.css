@@ -63,7 +63,7 @@ html { overscroll-behavior-y: none; }
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
   opacity: 0;
   filter: saturate(0.72) contrast(1.18) brightness(0.68);
@@ -1906,17 +1906,23 @@ main { position: relative; }
 
   /* ---- Hamburger navigation ---- */
   .chapter-nav {
+    position: fixed;
     top: 14px;
     left: 14px;
+    right: auto;
     width: auto;
+    display: block;
     gap: 0;
     background: transparent;
     border: 0;
     box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    z-index: 30;
   }
   .nav-burger {
+    position: relative;
+    z-index: 2;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -1925,14 +1931,14 @@ main { position: relative; }
     padding: 11px 10px;
     border: 1px solid rgba(255,255,255,.18);
     border-radius: 12px;
-    background: rgba(4,6,8,.72);
+    background: rgba(4,6,8,.82);
     backdrop-filter: blur(18px) saturate(1.2);
     -webkit-backdrop-filter: blur(18px) saturate(1.2);
     box-shadow: 0 14px 40px rgba(0,0,0,.4);
     cursor: pointer;
     transition: background .24s ease, border-color .24s ease;
   }
-  .nav-burger:hover { border-color: var(--accent); }
+  .nav-burger:hover, .nav-burger:focus-visible { border-color: var(--accent); outline: none; }
   .nav-burger i {
     display: block;
     width: 100%;
@@ -1945,34 +1951,43 @@ main { position: relative; }
   .chapter-nav.is-open .nav-burger i:nth-child(2) { opacity: 0; transform: scaleX(0); }
   .chapter-nav.is-open .nav-burger i:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
 
-  /* Collapsed: only burger visible. Expanded: full menu list as a glass panel. */
+  /* Expanded: full menu list as a glass panel below the burger. */
   .chapter-nav .nav-stack {
     position: absolute;
-    top: 52px;
+    top: 50px;
     left: 0;
-    min-width: 220px;
+    min-width: 240px;
     display: grid;
     gap: 2px;
     padding: 8px;
     border: 1px solid rgba(255,255,255,.16);
     border-radius: 14px;
-    background: rgba(4,6,8,.82);
+    background: rgba(4,6,8,.92);
     backdrop-filter: blur(20px) saturate(1.2);
     -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    box-shadow: 0 24px 70px rgba(0,0,0,.5);
+    box-shadow: 0 24px 70px rgba(0,0,0,.6);
     opacity: 0;
     visibility: hidden;
+    pointer-events: none;
     transform: translateY(-8px);
     transition: opacity .24s ease, transform .24s cubic-bezier(.22,1,.36,1), visibility .24s;
+    z-index: 1;
   }
-  .chapter-nav.is-open .nav-stack { opacity: 1; visibility: visible; transform: translateY(0); }
+  .chapter-nav.is-open .nav-stack {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
   .chapter-nav .nav-footer { display: none; }
 
   .chapter-nav .nav-item {
+    position: relative;
     grid-template-columns: 24px 1fr auto;
     gap: 10px;
     align-items: center;
     min-height: 44px;
+    margin: 0;
     padding: 8px 12px;
     border: 0;
     border-radius: 8px;
@@ -1980,20 +1995,27 @@ main { position: relative; }
     background: transparent;
     box-shadow: none;
     transform: none;
+    cursor: pointer;
   }
   .chapter-nav .nav-item:hover,
   .chapter-nav .nav-item.is-active {
     padding-left: 12px;
     color: #fff;
-    background: rgba(243,198,0,.08);
+    background: rgba(243,198,0,.1);
     box-shadow: none;
     transform: none;
   }
   .chapter-nav .nav-item.is-active::before {
+    content: "";
+    position: absolute;
     left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
     width: 3px;
     height: 18px;
     border-radius: 99px;
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(243,198,0,.6);
   }
   .chapter-nav .nav-label { display: grid; grid-template-columns: 1fr; gap: 2px; }
   .chapter-nav .nav-label strong { font-size: 11px; letter-spacing: .08em; }
@@ -2018,7 +2040,31 @@ main { position: relative; }
 
   /* ---- Chapter copy / scene headings: readable, not clipped ---- */
   .chapter-copy,
-  .chapter-about .chapter-copy { width: calc(100vw - 96px); max-width: 360px; }
+  .chapter-about .chapter-copy {
+    width: calc(100vw - 32px);
+    max-width: 420px;
+    right: auto;
+    bottom: auto;
+    top: auto;
+    left: auto;
+    transform: none;
+    text-align: left;
+  }
+  .chapter-copy--bottom-right,
+  .chapter-copy--top-right,
+  .chapter-copy--center-right,
+  .chapter-copy--center-left,
+  .chapter-copy--bottom-left,
+  .chapter-copy--top-center {
+    right: auto;
+    bottom: auto;
+    top: auto;
+    left: auto;
+    transform: none;
+  }
+  .chapter-copy--top-right { text-align: left; }
+  .chapter-copy--top-center .chapter-summary,
+  .chapter-copy--top-center { margin-inline: 0; }
   .chapter-copy h1 { font-size: clamp(34px, 9vw, 46px); }
   .chapter-copy h2 { font-size: clamp(26px, 7vw, 34px); }
   .chapter-copy .chapter-summary,
@@ -2056,7 +2102,7 @@ main { position: relative; }
   }
 
   /* ---- About (01) ---- */
-  .chapter-about .chapter-copy { right: 16px; }
+  .chapter-about .chapter-copy { right: auto; }
   .chapter-about .micro-content-list--stats { grid-template-columns: 1fr 1fr; }
   .chapter-about .micro-content-list--stats button { min-height: 60px; padding: 10px 8px 10px 0; }
   .chapter-about .micro-content-list--stats button > strong { font-size: 22px; }
@@ -2068,6 +2114,20 @@ main { position: relative; }
   .experience-card p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
   /* ---- System (03) ---- */
+  .chapter-system .system-screen-ui {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    transform: none;
+    padding: 12px;
+    border-radius: 14px;
+    grid-template-rows: auto 1fr;
+  }
   .system-screen-ui__header { grid-template-columns: 1fr; gap: 6px; padding: 0 0 8px; }
   .system-screen-ui__header .system-status { display: none; }
   .system-screen-ui__body { grid-template-columns: 1fr; grid-template-rows: 1fr auto; padding-top: 8px; }

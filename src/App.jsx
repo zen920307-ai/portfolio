@@ -274,14 +274,42 @@ function CinematicBackdrop() {
   const durations = useRef([5, 5, 5, 5, 5]);
   const targetTimes = useRef([0, 0, 0, 0, 0]);
   const activeSegment = useRef(0);
+  const activatedRef = useRef(false);
   const [visibleSegment, setVisibleSegment] = useState(0);
   const videos = [1, 2, 3, 4, 5];
-  // Mobile browsers (esp. iOS Safari) block JS-driven currentTime scrubbing on
-  // non-playing videos. Detect touch/small-viewport and fall back to a muted
-  // autoplay loop so the background still reads as cinematic motion.
+  // Mobile needs videos to be "playing-ready" before currentTime can be scrubbed.
+  // We activate them once on first user gesture, then pause and scrub via currentTime.
   const isMobile = typeof window !== "undefined" && (
     window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 760
   );
+
+  // Activate (unlock) all videos on the first user interaction so iOS lets us
+  // set currentTime later. play() then immediate pause() flips them into a
+  // scrub-friendly state without leaving them autoplaying.
+  useEffect(() => {
+    if (!isMobile) return undefined;
+    const unlock = () => {
+      if (activatedRef.current) return;
+      activatedRef.current = true;
+      videoRefs.current.forEach((v) => {
+        if (!v) return;
+        const p = v.play();
+        if (p && typeof p.then === "function") {
+          p.then(() => { v.pause(); }).catch(() => {});
+        } else {
+          v.pause();
+        }
+      });
+    };
+    window.addEventListener("touchstart", unlock, { passive: true, once: true });
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("scroll", unlock, { passive: true, once: true });
+    return () => {
+      window.removeEventListener("touchstart", unlock);
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("scroll", unlock);
+    };
+  }, [isMobile]);
 
   useEffect(() => {
     let frameRequest = 0;
@@ -292,22 +320,6 @@ function CinematicBackdrop() {
       const rawPage = window.scrollY / pageHeight;
       const segment = clamp(Math.floor(rawPage), 0, 4);
       const local = segment === 4 && rawPage >= 5 ? 1 : clamp(rawPage - segment, 0, 1);
-
-      // Mobile: only toggle which video is visible (autoplay handles motion).
-      if (isMobile) {
-        activeSegment.current = segment;
-        setVisibleSegment((current) => current === segment ? current : segment);
-        videoRefs.current.forEach((v, i) => {
-          if (!v) return;
-          if (i === segment) {
-            v.play().catch(() => {});
-          } else {
-            v.pause();
-          }
-        });
-        return;
-      }
-
       targetTimes.current[segment] = frameTimeForProgress(durations.current[segment], FRAME_COUNTS[segment], local);
 
       if (segment > activeSegment.current) {
@@ -351,7 +363,7 @@ function CinematicBackdrop() {
       window.removeEventListener("resize", queueFrame);
       window.cancelAnimationFrame(frameRequest);
     };
-  }, [isMobile]);
+  }, []);
 
   return (
     <div className="cinematic-backdrop" aria-hidden="true">
@@ -362,13 +374,10 @@ function CinematicBackdrop() {
           className={index === visibleSegment ? "background-video is-active" : "background-video"}
           src={`/videos/scroll-0${number}.mp4?v=240`}
           muted
-          loop={isMobile}
           playsInline
-          autoPlay={isMobile}
           preload="auto"
           onLoadedMetadata={(event) => {
             durations.current[index] = event.currentTarget.duration || 5;
-            if (isMobile) return;
             const pageHeight = Math.max(1, window.innerHeight);
             const rawPage = window.scrollY / pageHeight;
             const local = index === 4 && rawPage >= 5 ? 1 : clamp(rawPage - index, 0, 1);
