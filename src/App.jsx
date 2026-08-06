@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
-import { career, chapters, projects, systemModules, vibeProjects, works } from "./data.js";
+import { career, chapters, profile, projects, systemModules, vibeProjects, works } from "./data.js";
 import { ProfileBadge } from "./ProfileBadge.jsx";
 import DriftWall from "./components/DriftWall.jsx";
 
@@ -366,27 +366,45 @@ function CinematicBackdrop() {
     };
   }, []);
 
+  // Trigger loading of adjacent videos when the visible segment changes.
+  // Setting the preload prop alone won't start a fetch for an already-mounted
+  // <video>; calling load() forces the browser to begin.
+  useEffect(() => {
+    videoRefs.current.forEach((v, i) => {
+      if (!v) return;
+      if (Math.abs(i - visibleSegment) <= 1 && v.readyState === 0) {
+        v.load();
+      }
+    });
+  }, [visibleSegment]);
+
   return (
     <div className="cinematic-backdrop" aria-hidden="true">
-      {videos.map((number, index) => (
-        <video
-          key={number}
-          ref={(element) => { videoRefs.current[index] = element; }}
-          className={index === visibleSegment ? "background-video is-active" : "background-video"}
-          src={`/videos/scroll-0${number}.mp4?v=240`}
-          muted
-          playsInline
-          preload="auto"
-          onLoadedMetadata={(event) => {
-            durations.current[index] = event.currentTarget.duration || 5;
-            const pageHeight = Math.max(1, window.innerHeight);
-            const rawPage = window.scrollY / pageHeight;
-            const local = index === 4 && rawPage >= 5 ? 1 : clamp(rawPage - index, 0, 1);
-            targetTimes.current[index] = frameTimeForProgress(durations.current[index], FRAME_COUNTS[index], local);
-            event.currentTarget.currentTime = targetTimes.current[index];
-          }}
-        />
-      ))}
+      {videos.map((number, index) => {
+        // Lazy preload: only the current segment and the next one are loaded
+        // eagerly. Far-away segments stay at "none" so the browser doesn't
+        // fetch all 30MB on first paint — just the ~7MB the user is viewing.
+        const shouldPreload = Math.abs(index - visibleSegment) <= 1;
+        return (
+          <video
+            key={number}
+            ref={(element) => { videoRefs.current[index] = element; }}
+            className={index === visibleSegment ? "background-video is-active" : "background-video"}
+            src={`/videos/scroll-0${number}.mp4?v=240`}
+            muted
+            playsInline
+            preload={shouldPreload ? "auto" : "none"}
+            onLoadedMetadata={(event) => {
+              durations.current[index] = event.currentTarget.duration || 5;
+              const pageHeight = Math.max(1, window.innerHeight);
+              const rawPage = window.scrollY / pageHeight;
+              const local = index === 4 && rawPage >= 5 ? 1 : clamp(rawPage - index, 0, 1);
+              targetTimes.current[index] = frameTimeForProgress(durations.current[index], FRAME_COUNTS[index], local);
+              event.currentTarget.currentTime = targetTimes.current[index];
+            }}
+          />
+        );
+      })}
       <div className="video-wash" />
       <div className="video-vignette" ref={vignetteRef} />
       <div className="video-vignette-left" />
@@ -495,31 +513,167 @@ function InfoOverlay({ eyebrow, title, onClose, children, className = "" }) {
   );
 }
 
+function LineIcon({ name, className = "" }) {
+  const paths = {
+    ux: "M3 12h4l2 5 4-12 2 7h6",
+    product: "M4 4h16v4H4zM4 12h16v4H4zM4 20h10",
+    tech: "M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8",
+    visual: "M4 4h16v16H4zM4 14l4-4 4 4 4-4 4 4",
+    ai: "M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z",
+    system: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+    travel: "M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z",
+    music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm12-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
+    photo: "M4 7h4l2-3h4l2 3h4v13H4zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+    rocket: "M12 2c3 2 5 5 5 9l-2 3h-6l-2-3c0-4 2-7 5-9zM12 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM7 16l-3 4M17 16l3 4",
+  };
+  const d = paths[name] || paths.ux;
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={d} />
+    </svg>
+  );
+}
+
+function ProfileOverlay({ onClose }) {
+  const rootRef = useRef(null);
+
+  useLayoutEffect(() => {
+    document.body.classList.add("modal-open");
+    const closeOnEscape = (event) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", closeOnEscape);
+    const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
+    timeline
+      .fromTo(rootRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 })
+      .fromTo(rootRef.current.querySelectorAll(".pm"), { y: 30, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.65, stagger: 0.07 }, "<0.08");
+    return () => {
+      timeline.kill();
+      window.removeEventListener("keydown", closeOnEscape);
+      document.body.classList.remove("modal-open");
+    };
+  }, [onClose]);
+
+  return (
+    <div ref={rootRef} className="profile-overlay" role="dialog" aria-modal="true" aria-label="个人档案">
+      <button type="button" className="info-overlay__close" onClick={onClose}>CLOSE</button>
+      <div className="profile-overlay__inner">
+        <header className="po-head pm">
+          <p className="eyebrow">PROFILE / ZEN.TANG</p>
+          <h2>Designer × Builder</h2>
+          <p className="po-head__lead">{profile.philosophy.lead}</p>
+        </header>
+
+        <section className="po-info pm">
+          {profile.info.map(([k, v]) => (
+            <div key={k}><small>{k}</small><b>{v}</b></div>
+          ))}
+        </section>
+
+        <section className="po-block pm">
+          <header className="po-block__head"><span>01</span><h3>设计理念</h3><small>PHILOSOPHY</small></header>
+          <div className="po-pillars">
+            {profile.philosophy.pillars.map((p) => (
+              <article key={p.title}>
+                <LineIcon name={p.icon} className="po-pillar__icon" />
+                <div>
+                  <small>{p.en}</small>
+                  <strong>{p.title}</strong>
+                </div>
+                <p>{p.desc}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="po-block pm">
+          <header className="po-block__head"><span>02</span><h3>能力矩阵</h3><small>CAPABILITY</small></header>
+          <div className="po-caps">
+            {profile.capabilities.map((cap) => (
+              <article key={cap.group}>
+                <header><LineIcon name={cap.icon} className="po-cap__icon" /><h4>{cap.group}</h4></header>
+                <ul>{cap.items.map((it) => <li key={it}>{it}</li>)}</ul>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <div className="po-split">
+          <section className="po-block pm">
+            <header className="po-block__head"><span>03</span><h3>工作时间线</h3><small>EXPERIENCE</small></header>
+            <ol className="po-timeline">
+              {profile.timeline.map(([year, title, desc]) => (
+                <li key={year}>
+                  <b>{year}</b>
+                  <div><strong>{title}</strong><small>{desc}</small></div>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="po-block pm">
+            <header className="po-block__head"><span>04</span><h3>设计方法</h3><small>WORKFLOW</small></header>
+            <div className="po-workflow">
+              <ol className="po-workflow__steps">
+                {profile.workflow.map((step, i) => (
+                  <li key={step}>{step}{i < profile.workflow.length - 1 && <span aria-hidden="true">→</span>}</li>
+                ))}
+              </ol>
+              <p>{profile.workflowDesc}</p>
+            </div>
+          </section>
+        </div>
+
+        <section className="po-block pm">
+          <header className="po-block__head"><span>05</span><h3>工具与技术栈</h3><small>STACK</small></header>
+          <div className="po-stack">
+            {profile.stack.map((s) => (
+              <div key={s.group}>
+                <small>{s.group}</small>
+                <ul>{s.items.map((it) => <li key={it}>{it}</li>)}</ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="po-block pm">
+          <header className="po-block__head"><span>06</span><h3>设计之外</h3><small>BEYOND DESIGN</small></header>
+          <div className="po-beyond">
+            {profile.beyond.map((b) => (
+              <article key={b.title}>
+                <LineIcon name={b.icon} className="po-beyond__icon" />
+                <strong>{b.title}</strong>
+                <small>{b.desc}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function AboutSection() {
   const [open, setOpen] = useState(false);
-  const signals = [["10+", "年 UI/UX 与产品设计经验"], ["0→1", "复杂产品与设计系统建设"], ["MULTI", "Web、小程序与数据大屏落地"]];
+
   return (
     <section className="chapter chapter-about" id="about" data-chapter="0">
       <div className="chapter-copy chapter-copy--bottom-right" data-narrative-anchor="about" data-thread-x="0.12" data-thread-y="0.12">
-        <p className="eyebrow motion-item">UI/UX DESIGN LEAD · PRODUCT EXPERIENCE DESIGNER</p>
-        <h1 className="motion-item"><span>TANG QIDONG</span>唐启东</h1>
-        <p className="chapter-summary chapter-summary--lead motion-item">专注复杂业务系统、设计系统与数据体验，把需求、逻辑与技术，转化为清晰、可落地、可持续演进的产品体验。</p>
+        <p className="eyebrow motion-item">PRODUCT DESIGNER · AI CREATIVE BUILDER</p>
+        <h1 className="motion-item hero-name">{profile.heroName}</h1>
+        <div className="hero-divider motion-item" />
+        <p className="chapter-summary chapter-summary--lead motion-item">{profile.heroLine}</p>
+        <ul className="hero-tags motion-item">
+          {profile.heroTags.map((tag) => <li key={tag}><LineIcon name="ai" className="hero-tag__icon" />{tag}</li>)}
+        </ul>
         <div className="micro-content-list micro-content-list--stats motion-item">
-          {signals.map(([value, label]) => <button type="button" key={label} onClick={() => setOpen(true)}><strong>{value}</strong><span>{label}</span><small>+</small></button>)}
+          {profile.stats.map(([value, label]) => <button type="button" key={label} onClick={() => setOpen(true)}><strong>{value}</strong><span>{label}</span><small>+</small></button>)}
         </div>
-        <button className="chapter-action motion-item" type="button" onClick={() => setOpen(true)}>VIEW SELECTED WORK / 查看代表项目</button>
+        <button className="hero-cta motion-item" type="button" onClick={() => setOpen(true)}>
+          <span>{profile.cta}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </button>
       </div>
       <p className="motion-hint">SCROLL DOWN · FRAME BY FRAME</p>
-      {open && (
-        <InfoOverlay eyebrow="PROFILE / TANG QIDONG" title="设计，不止停在界面。" onClose={() => setOpen(false)}>
-          <div className="profile-detail-grid">
-            <article><span>01</span><h3>先定义问题，再定义界面</h3><p>从业务目标、用户任务和协作约束出发，让每个视觉决策都有理由。</p></article>
-            <article><span>02</span><h3>先建立秩序，再表达视觉</h3><p>用信息架构、Token 与组件系统，把复杂产品整理成可持续的语言。</p></article>
-            <article><span>03</span><h3>让标准真正被使用</h3><p>连接产品、设计与研发，让规范进入日常交付，而不是停在文档里。</p></article>
-            <article><span>04</span><h3>用原型降低决策风险</h3><p>通过高保真原型与 Vibe Coding，把抽象想法快速变成可验证体验。</p></article>
-          </div>
-        </InfoOverlay>
-      )}
+      {open && <ProfileOverlay onClose={() => setOpen(false)} />}
     </section>
   );
 }
@@ -1065,9 +1219,12 @@ function GraphicSection() {
     return () => { alive = false; };
   }, []);
 
-  const driftItems = items.map((w) => ({ image: w.src, title: w.title, href: undefined, __raw: w }));
+  const driftItems = items.map((w) => ({ image: w.src, title: w.title, type: w.type, href: undefined, __raw: w }));
   const handleTileActivate = useCallback((item) => {
     setActiveWork(item?.__raw ?? null);
+  }, []);
+  const handleTileOpen = useCallback((item) => {
+    if (item?.__raw) setSelected(item.__raw);
   }, []);
 
   return (
@@ -1085,6 +1242,7 @@ function GraphicSection() {
             direction="up"
             variance={0.3}
             onTileActivate={handleTileActivate}
+            onOpen={handleTileOpen}
           />
           <div className="graphic-drift__caption">
             {activeWork ? (
