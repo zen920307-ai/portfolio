@@ -1,10 +1,9 @@
-// Compress the scroll-scrub background videos.
-// Strategy: 720p, every frame a keyframe (-g 1), no B-frames, CRF 28.
-// This keeps scrub seek instant while cutting size ~5-8x with no perceptible
-// quality loss against the heavy vignette + filter backdrop.
+// Compress the scroll-scrub background videos WITHOUT touching resolution
+// or frame count. Only raises CRF to cut bitrate, keeps every frame a
+// keyframe so currentTime scrub stays instant.
+// Resolution, fps, frame count, dimensions are all preserved.
 // Usage: node scripts/compress-videos.mjs
-import { readdirSync, existsSync, mkdirSync, renameSync } from "node:fs";
-import { statSync } from "node:fs";
+import { readdirSync, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
@@ -27,32 +26,33 @@ for (const f of files) {
   const before = statSync(src).size;
   totalBefore += before;
 
-  // -g 1: every frame keyframe → instant scrub seek
-  // -bf 0: no B-frames → no reorder delay
-  // -pix_fmt yuv420p: max compat (Safari/iOS)
-  // -movflags +faststart: moov atom first → stream starts before full download
+  // NO scale filter → original resolution preserved.
+  // -g 1 + -bf 0 → every frame keyframe, no B-frames → instant scrub seek.
+  // -crf 28 → visually lossless against the heavy vignette/filter backdrop,
+  //           but cuts bitrate ~3-4x. Raise to 30 for smaller, 26 for sharper.
   const args = [
     "-y",
     "-i", src,
-    "-vf", "scale=1280:720",
+    "-an",
     "-c:v", "libx264",
-    "-preset", "veryfast",
+    "-preset", "slow",
     "-crf", "28",
     "-g", "1",
     "-keyint_min", "1",
     "-bf", "0",
     "-refs", "1",
     "-pix_fmt", "yuv420p",
-    "-an",
     "-movflags", "+faststart",
     tmp,
   ];
-  execSync(`ffmpeg ${args.map((a) => a.includes(" ") ? `"${a}"` : a).join(" ")}`, {
+  execSync(`ffmpeg ${args.map((a) => (a.includes(" ") ? `"${a}"` : a)).join(" ")}`, {
     stdio: "inherit",
   });
 
-  // Backup original, replace with compressed.
-  renameSync(src, join(backup, f));
+  // Backup original (only if not already backed up), replace with compressed.
+  const backupPath = join(backup, f);
+  if (!existsSync(backupPath)) renameSync(src, backupPath);
+  else unlinkSync(src);
   renameSync(tmp, src);
   const after = statSync(src).size;
   totalAfter += after;
