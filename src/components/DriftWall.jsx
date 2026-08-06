@@ -11,26 +11,21 @@ const columnFactor = (index, variance) => {
 
 const DriftWall = ({
   items,
-  columns = 5,
-  tileWidth = 200,
-  tileHeight = 132,
-  gap = 18,
-  radius = 14,
-  tilt = 16,
-  turn = -14,
+  columns = 3,
+  tileWidth = 220,
+  gap = 16,
+  radius = 8,
+  tilt = 6,
+  turn = -4,
   roll = 0,
-  perspective = 1200,
-  depth = 120,
-  speed = 42,
+  perspective = 1400,
+  depth = 60,
+  speed = 32,
   direction = 'up',
-  variance = 0.45,
-  parallax = 0.6,
+  variance = 0.3,
+  parallax = 0.4,
   pauseOnHover = false,
-  lift = 64,
-  fade = 0.6,
-  dim = 0.55,
-  grayscale = false,
-  overlayColor = '#060010',
+  lift = 48,
   className = '',
   onTileActivate = null,
   style
@@ -46,7 +41,6 @@ const DriftWall = ({
   const pointerRef = useRef({ x: 0, y: 0 });
   const pointerDampedRef = useRef({ x: 0, y: 0 });
   const lastTsRef = useRef(null);
-  const [containerHeight, setContainerHeight] = useState(600);
   const [activeId, setActiveId] = useState(null);
   const activeIdRef = useRef(null);
   const [reduced, setReduced] = useState(false);
@@ -64,29 +58,12 @@ const DriftWall = ({
     [items]
   );
 
+  // Deal items into N columns round-robin.
   const columnItems = useMemo(() => {
     const cols = Array.from({ length: columns }, () => []);
     resolvedItems.forEach((item, i) => cols[i % columns].push(item));
     return cols.map((col) => (col.length ? col : resolvedItems.slice(0, 1)));
   }, [resolvedItems, columns]);
-
-  const columnMeta = useMemo(() => {
-    const unit = tileHeight + gap;
-    return columnItems.map((col) => {
-      const copyHeight = Math.max(unit, col.length * unit);
-      const copies = Math.max(2, Math.ceil((containerHeight * 1.6) / copyHeight) + 1);
-      return { copyHeight, copies };
-    });
-  }, [columnItems, tileHeight, gap, containerHeight]);
-
-  useLayoutEffect(() => {
-    if (!containerRef.current) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setContainerHeight(entry.contentRect.height || 600);
-    });
-    ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
 
   const baseVelocities = useMemo(() => {
     const dirSign = direction === 'up' ? 1 : -1;
@@ -96,17 +73,49 @@ const DriftWall = ({
     });
   }, [columnItems, speed, direction, variance]);
 
+  // Each column renders its items TWICE back-to-back. The track height is then
+  // exactly 2 × (one set). Translating by -half lands copy 2's first item
+  // exactly under copy 1's first item → seamless infinite loop, no seam, no
+  // blank jump. We measure half via scrollHeight at runtime so tile height can
+  // be fully driven by image aspect ratio (object-fit: contain, no cropping).
+  const halfHeightsRef = useRef([]);
+
+  const measureHalves = useCallback(() => {
+    halfHeightsRef.current = trackRefs.current.map((el) => {
+      if (!el) return 1;
+      const full = el.scrollHeight || 1;
+      return full / 2 || 1;
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    measureHalves();
+    const ro = new ResizeObserver(measureHalves);
+    trackRefs.current.forEach((el) => el && ro.observe(el));
+    // Re-measure after images load (heights change).
+    const imgs = containerRef.current?.querySelectorAll('img') || [];
+    const onLoad = () => measureHalves();
+    imgs.forEach((img) => {
+      if (img.complete) onLoad();
+      else img.addEventListener('load', onLoad, { once: true });
+    });
+    return () => {
+      ro.disconnect();
+      imgs.forEach((img) => img.removeEventListener('load', onLoad));
+    };
+  }, [measureHalves, columnItems]);
+
   useEffect(() => {
-    offsetsRef.current = columnMeta.map((meta, c) => meta.copyHeight * ((c * 0.37) % 1));
+    offsetsRef.current = columnItems.map(() => 0);
     velocitiesRef.current = columnItems.map(() => 0);
-  }, [columnMeta, columnItems]);
+  }, [columnItems]);
 
   const applyPlaneTransform = useCallback(
     (px, py) => {
       const plane = planeRef.current;
       if (!plane) return;
       plane.style.transform =
-        `translate(-50%, -50%) scale(1.18) ` +
+        `translate(-50%, -50%) ` +
         `rotateX(${tilt + py}deg) rotateY(${turn + px}deg) rotateZ(${roll}deg) ` +
         `translateZ(${-depth}px)`;
     },
@@ -125,26 +134,21 @@ const DriftWall = ({
       pointerDampedRef.current.x += (targetX - pointerDampedRef.current.x) * damp;
       pointerDampedRef.current.y += (targetY - pointerDampedRef.current.y) * damp;
       applyPlaneTransform(pointerDampedRef.current.x, pointerDampedRef.current.y);
+
       if (!reduced) {
         for (let c = 0; c < trackRefs.current.length; c++) {
-          const meta = columnMeta[c];
-          if (!meta) continue;
+          const half = halfHeightsRef.current[c] || 1;
           const paused = wallHoveredRef.current && pauseOnHover;
           const factor = paused || hoveredColRef.current === c ? 0 : 1;
           const target = baseVelocities[c] * factor;
           const ease = 1 - Math.exp(-dt / (target === 0 ? 0.16 : 0.28));
           velocitiesRef.current[c] += (target - velocitiesRef.current[c]) * ease;
           let next = (offsetsRef.current[c] ?? 0) + velocitiesRef.current[c] * dt;
-          next = ((next % meta.copyHeight) + meta.copyHeight) % meta.copyHeight;
+          // Wrap within [-half, 0] so the second copy always covers the gap.
+          next = ((next % half) + half) % half;
           offsetsRef.current[c] = next;
           const el = trackRefs.current[c];
           if (el) el.style.transform = `translate3d(0, ${-next}px, 0)`;
-        }
-      } else {
-        for (let c = 0; c < trackRefs.current.length; c++) {
-          const el = trackRefs.current[c];
-          const meta = columnMeta[c];
-          if (el && meta) el.style.transform = `translate3d(0, ${-(offsetsRef.current[c] ?? 0)}px, 0)`;
         }
       }
       rafRef.current = requestAnimationFrame(animate);
@@ -155,7 +159,7 @@ const DriftWall = ({
       rafRef.current = null;
       lastTsRef.current = null;
     };
-  }, [baseVelocities, columnMeta, pauseOnHover, parallax, reduced, applyPlaneTransform]);
+  }, [baseVelocities, pauseOnHover, parallax, reduced, applyPlaneTransform]);
 
   const activate = useCallback(
     (id, index, item) => {
@@ -190,7 +194,8 @@ const DriftWall = ({
       const id = tile.dataset.tileId;
       if (id === activeIdRef.current) return;
       const col = Number(tile.dataset.col);
-      const item = columnItems[col]?.[Number(tile.dataset.itemIndex)];
+      const itemIndex = Number(tile.dataset.itemIndex);
+      const item = columnItems[col]?.[itemIndex % columnItems[col].length];
       activate(id, col, item);
     },
     [parallax, reduced, columnItems, activate]
@@ -205,25 +210,19 @@ const DriftWall = ({
   const cssVars = useMemo(
     () => ({
       '--dw-tile-w': `${tileWidth}px`,
-      '--dw-tile-h': `${tileHeight}px`,
       '--dw-gap': `${gap}px`,
       '--dw-radius': `${radius}px`,
       '--dw-perspective': `${perspective}px`,
       '--dw-lift': `${lift}px`,
-      '--dw-dim': dim,
-      '--dw-gray': grayscale ? 1 : 0,
-      '--dw-overlay': overlayColor,
-      '--dw-edge': `${Math.max(0, (1 - fade) * 100)}%`,
       ...style,
     }),
-    [tileWidth, tileHeight, gap, radius, perspective, lift, dim, grayscale, overlayColor, fade, style]
+    [tileWidth, gap, radius, perspective, lift, style]
   );
 
   const renderTile = (item, id, colIndex, itemIndex) => {
     const inner = (
       <span className="drift-wall__inner">
         <img src={item.image} alt={item.title ?? ''} loading="lazy" decoding="async" draggable={false} />
-        <span className="drift-wall__overlay" aria-hidden="true" />
       </span>
     );
     const commonProps = {
@@ -255,29 +254,22 @@ const DriftWall = ({
       className={rootClass}
       style={cssVars}
       onPointerMove={handlePointerMove}
-      onPointerEnter={() => {
-        wallHoveredRef.current = true;
-      }}
+      onPointerEnter={() => { wallHoveredRef.current = true; }}
       onPointerLeave={handlePointerLeaveWall}
       role="group"
       aria-label="Drifting wall of tiles"
     >
       <div ref={planeRef} className="drift-wall__plane">
-        {columnItems.map((col, c) => {
-          const meta = columnMeta[c];
-          const copies = Array.from({ length: meta.copies });
-          return (
-            <div className="drift-wall__col" key={`col-${c}`}>
-              <div className="drift-wall__track" ref={(el) => { trackRefs.current[c] = el; }}>
-                {copies.map((_, copyIndex) =>
-                  col.map((item, itemIndex) =>
-                    renderTile(item, `${c}-${copyIndex}-${itemIndex}`, c, itemIndex)
-                  )
-                )}
-              </div>
+        {columnItems.map((col, c) => (
+          <div className="drift-wall__col" key={`col-${c}`}>
+            <div className="drift-wall__track" ref={(el) => { trackRefs.current[c] = el; }}>
+              {/* Copy 1 */}
+              {col.map((item, i) => renderTile(item, `${c}-0-${i}`, c, i))}
+              {/* Copy 2 — identical, so -half snaps seamlessly onto 0 */}
+              {col.map((item, i) => renderTile(item, `${c}-1-${i}`, c, i))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );

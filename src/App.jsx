@@ -1079,22 +1079,18 @@ function GraphicSection() {
             items={driftItems}
             columns={3}
             tileWidth={220}
-            tileHeight={165}
             gap={16}
             radius={8}
-            tilt={10}
-            turn={-8}
+            tilt={6}
+            turn={-4}
             perspective={1400}
-            depth={80}
+            depth={60}
             speed={32}
             direction="up"
-            variance={0.35}
-            parallax={0.5}
+            variance={0.3}
+            parallax={0.4}
             pauseOnHover
             lift={48}
-            fade={0.5}
-            dim={1}
-            overlayColor="transparent"
             onTileActivate={handleTileActivate}
           />
           <div className="graphic-drift__caption">
