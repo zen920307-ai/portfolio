@@ -581,8 +581,9 @@ function CareerStageDetail({ onClose }) {
 
               {index < career.length - 1 && (
                 <div className="career-line__shift" aria-hidden="true">
+                  <small className="career-line__shift-label">NEXT STAGE</small>
                   <span className="career-line__arrow">▶▶▶</span>
-                  <small>{stage.shift}</small>
+                  <p className="career-line__shift-text">{stage.shift}</p>
                 </div>
               )}
             </div>
@@ -1076,24 +1077,24 @@ function GraphicSection() {
         <div className="graphic-drift motion-item">
           <DriftWall
             items={driftItems}
-            columns={5}
-            tileWidth={170}
-            tileHeight={120}
-            gap={14}
-            radius={10}
-            tilt={14}
-            turn={-12}
-            perspective={1200}
-            depth={110}
-            speed={38}
+            columns={3}
+            tileWidth={220}
+            tileHeight={165}
+            gap={16}
+            radius={8}
+            tilt={10}
+            turn={-8}
+            perspective={1400}
+            depth={80}
+            speed={32}
             direction="up"
-            variance={0.45}
-            parallax={0.55}
+            variance={0.35}
+            parallax={0.5}
             pauseOnHover
-            lift={56}
-            fade={0.6}
-            dim={0.5}
-            overlayColor="#050505"
+            lift={48}
+            fade={0.5}
+            dim={1}
+            overlayColor="transparent"
             onTileActivate={handleTileActivate}
           />
           <div className="graphic-drift__caption">
