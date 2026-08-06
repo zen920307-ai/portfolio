@@ -1081,16 +1081,9 @@ function GraphicSection() {
             tileWidth={220}
             gap={16}
             radius={8}
-            tilt={6}
-            turn={-4}
-            perspective={1400}
-            depth={60}
             speed={32}
             direction="up"
             variance={0.3}
-            parallax={0.4}
-            pauseOnHover
-            lift={48}
             onTileActivate={handleTileActivate}
           />
           <div className="graphic-drift__caption">

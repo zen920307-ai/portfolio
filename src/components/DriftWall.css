@@ -3,50 +3,61 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  perspective: var(--dw-perspective, 1400px);
-  perspective-origin: 50% 50%;
-  --dw-tile-w: 220px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: var(--dw-gap, 16px);
   --dw-gap: 16px;
+  --dw-col-w: 220px;
   --dw-radius: 8px;
   --dw-lift: 48px;
-  /* Top + bottom soft fades only — keeps the loop seam invisible without
-     darkening the middle. Symmetric so neither edge feels cut. */
+  /* 顶底对称渐隐：藏住循环接缝，不削弱中间 */
   --dw-fade: 12%;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 var(--dw-fade), #000 calc(100% - var(--dw-fade)), transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 var(--dw-fade), #000 calc(100% - var(--dw-fade)), transparent 100%);
 }
-.drift-wall__plane {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: flex;
-  flex-direction: row;
-  gap: var(--dw-gap);
-  transform-style: preserve-3d;
-  cursor: pointer;
-  transform-origin: 50% 50%;
-  will-change: transform;
-}
+
 .drift-wall__col {
   position: relative;
-  width: var(--dw-tile-w);
-  transform-style: preserve-3d;
+  width: var(--dw-col-w);
+  flex: 0 0 var(--dw-col-w);
+  overflow: hidden;
 }
+
+/* track 渲染两份相同内容，高度 = 2 × (一份)。
+   translateY(-50%) 刚好让第二份首项落到第一份首项位置 → 无缝。 */
 .drift-wall__track {
   display: flex;
   flex-direction: column;
   gap: var(--dw-gap);
   will-change: transform;
-  transform-style: preserve-3d;
 }
+.drift-wall__track--up {
+  animation: dw-up var(--dw-dur, 40s) linear infinite;
+}
+.drift-wall__track--down {
+  animation: dw-down var(--dw-dur, 40s) linear infinite;
+}
+@keyframes dw-up {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(0, -50%, 0); }
+}
+@keyframes dw-down {
+  from { transform: translate3d(0, -50%, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+
+/* 悬停某列时暂停该列，便于看清 */
+.drift-wall__col:hover .drift-wall__track {
+  animation-play-state: paused;
+}
+
 .drift-wall__tile {
   position: relative;
   display: block;
   width: 100%;
-  /* Height follows the image's own aspect ratio — no fixed crop. */
   height: auto;
   outline: none;
-  transform-style: preserve-3d;
 }
 .drift-wall__inner {
   position: relative;
@@ -54,9 +65,7 @@
   width: 100%;
   border-radius: var(--dw-radius);
   overflow: hidden;
-  background: rgba(8, 8, 8, 0.4);
-  transform: translateZ(0);
-  pointer-events: none;
+  background: rgba(8, 8, 8, 0.45);
   transition:
     transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.42s cubic-bezier(0.22, 1, 0.36, 1);
@@ -65,30 +74,20 @@
   width: 100%;
   height: auto;
   display: block;
-  /* contain = full poster visible, never cropped. */
   object-fit: contain;
   filter: saturate(0.96);
   transition: filter 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   user-select: none;
   -webkit-user-drag: none;
 }
-.drift-wall__tile.is-active .drift-wall__inner,
-.drift-wall__tile:focus-visible .drift-wall__inner {
-  transform: translateZ(var(--dw-lift));
-  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7);
+.drift-wall__tile:hover .drift-wall__inner {
+  transform: translateZ(0) scale(1.02);
+  box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.8);
 }
-.drift-wall__tile.is-active img,
-.drift-wall__tile:focus-visible img {
+.drift-wall__tile:hover img {
   filter: saturate(1.05);
 }
-.drift-wall__tile:focus-visible .drift-wall__inner {
-  box-shadow:
-    0 24px 60px -18px rgba(0, 0, 0, 0.7),
-    0 0 0 2px rgba(255, 255, 255, 0.9);
-}
+
 @media (prefers-reduced-motion: reduce) {
-  .drift-wall__plane,
-  .drift-wall__track {
-    will-change: auto;
-  }
+  .drift-wall__track { animation: none; }
 }
