@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { libraryImagesPlugin } from "./scripts/library-images-plugin.mjs";
 
 export default defineConfig({
   build: {
@@ -16,5 +17,5 @@ export default defineConfig({
       clientFiles: ["./src/main.jsx"],
     },
   },
-  plugins: [react()],
+  plugins: [react(), libraryImagesPlugin()],
 });

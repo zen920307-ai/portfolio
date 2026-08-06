@@ -513,6 +513,73 @@ function InfoOverlay({ eyebrow, title, onClose, children, className = "" }) {
   );
 }
 
+function ZoomableImage({ src, alt, className = "" }) {
+  const imgRef = useRef(null);
+  const scaleRef = useRef(1);
+  const xRef = useRef(0);
+  const yRef = useRef(0);
+  const draggingRef = useRef(false);
+  const lastRef = useRef({ x: 0, y: 0 });
+
+  const apply = useCallback(() => {
+    const el = imgRef.current;
+    if (!el) return;
+    el.style.transform = `translate(${xRef.current}px, ${yRef.current}px) scale(${scaleRef.current})`;
+  }, []);
+
+  const onWheel = useCallback((event) => {
+    event.preventDefault();
+    const delta = -event.deltaY * 0.0015;
+    scaleRef.current = Math.min(Math.max(0.5, scaleRef.current + delta * scaleRef.current), 8);
+    apply();
+  }, [apply]);
+
+  const onPointerDown = useCallback((event) => {
+    if (scaleRef.current <= 1) return;
+    draggingRef.current = true;
+    lastRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((event) => {
+    if (!draggingRef.current) return;
+    xRef.current += event.clientX - lastRef.current.x;
+    yRef.current += event.clientY - lastRef.current.y;
+    lastRef.current = { x: event.clientX, y: event.clientY };
+    apply();
+  }, [apply]);
+
+  const endDrag = useCallback((event) => {
+    draggingRef.current = false;
+    if (event.currentTarget.releasePointerCapture && event.pointerId !== undefined) {
+      try { event.currentTarget.releasePointerCapture(event.pointerId); } catch (_) { /* noop */ }
+    }
+  }, []);
+
+  const reset = useCallback(() => {
+    scaleRef.current = 1; xRef.current = 0; yRef.current = 0; apply();
+  }, [apply]);
+
+  useEffect(() => { reset(); }, [src, reset]);
+
+  return (
+    <img
+      ref={imgRef}
+      src={src}
+      alt={alt}
+      className={`zoomable-img ${className}`}
+      onWheel={onWheel}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onDoubleClick={reset}
+      draggable="false"
+      style={{ cursor: scaleRef.current > 1 ? "grab" : "zoom-in" }}
+    />
+  );
+}
+
 function LineIcon({ name, className = "" }) {
   const paths = {
     ux: "M3 12h4l2 5 4-12 2 7h6",
@@ -553,9 +620,9 @@ function ProfileOverlay({ onClose }) {
   }, [onClose]);
 
   return (
-    <div ref={rootRef} className="profile-overlay" role="dialog" aria-modal="true" aria-label="个人档案">
+    <div ref={rootRef} className="profile-overlay" role="dialog" aria-modal="true" aria-label="个人档案" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <button type="button" className="info-overlay__close" onClick={onClose}>CLOSE</button>
-      <div className="profile-overlay__inner">
+      <div className="profile-overlay__inner" onClick={(e) => e.stopPropagation()}>
         <header className="po-head pm">
           <p className="eyebrow">PROFILE / ZEN.TANG</p>
           <h2>Designer × Builder</h2>
@@ -590,7 +657,7 @@ function ProfileOverlay({ onClose }) {
             {profile.capabilities.map((cap) => (
               <article key={cap.group}>
                 <header><LineIcon name={cap.icon} className="po-cap__icon" /><h4>{cap.group}</h4></header>
-                <ul>{cap.items.map((it) => <li key={it}>{it}</li>)}</ul>
+                <ul>{cap.items.map((it) => <li key={it}><i className="po-dot" aria-hidden="true" />{it}</li>)}</ul>
               </article>
             ))}
           </div>
@@ -628,7 +695,7 @@ function ProfileOverlay({ onClose }) {
             {profile.stack.map((s) => (
               <div key={s.group}>
                 <small>{s.group}</small>
-                <ul>{s.items.map((it) => <li key={it}>{it}</li>)}</ul>
+                <ul>{s.items.map((it) => <li key={it}><i className="po-dot" aria-hidden="true" />{it}</li>)}</ul>
               </div>
             ))}
           </div>
@@ -657,7 +724,7 @@ function AboutSection() {
   return (
     <section className="chapter chapter-about" id="about" data-chapter="0">
       <div className="chapter-copy chapter-copy--bottom-right" data-narrative-anchor="about" data-thread-x="0.12" data-thread-y="0.12">
-        <p className="eyebrow motion-item">PRODUCT DESIGNER · AI CREATIVE BUILDER</p>
+        <p className="eyebrow motion-item">PRODUCT DESIGNER · DESIGNER & BUILDER</p>
         <h1 className="motion-item hero-name">{profile.heroName}</h1>
         <div className="hero-divider motion-item" />
         <p className="chapter-summary chapter-summary--lead motion-item">{profile.heroLine}</p>
@@ -697,7 +764,7 @@ function CareerStageDetail({ onClose }) {
   }, [onClose]);
 
   return (
-    <div ref={rootRef} className="career-overlay" role="dialog" aria-modal="true" aria-label="职业经历四个阶段">
+    <div ref={rootRef} className="career-overlay" role="dialog" aria-modal="true" aria-label="职业经历四个阶段" onClick={(e) => { if (e.target === e.currentTarget || e.target.classList.contains("career-overlay__inner")) onClose(); }}>
       <button type="button" className="info-overlay__close" onClick={onClose}>CLOSE</button>
       <div className="career-overlay__inner">
         <header className="career-overlay__head cm">
@@ -755,8 +822,8 @@ function ExperienceSection() {
       <div className="experience-panel scene-panel" data-narrative-anchor="experience" data-thread-x="0.92" data-thread-y="0.12">
         <header className="scene-heading motion-item">
           <p className="eyebrow">EXPERIENCE / 2015—NOW</p>
-          <h2>从设计执行者，到体验与系统的推动者。</h2>
-          <p>十年设计实践，从视觉与界面出发，持续深入复杂业务、产品体验与设计系统建设，把个人经验沉淀为可协作、可复用、可落地的设计方法。</p>
+          <h2>从设计执行者，到产品构建者。</h2>
+          <p>十年设计实践，从视觉与界面出发，持续深入复杂业务、产品体验与设计系统，最终把设计判断推进到 AI 与代码，独立构建可运行产品。</p>
         </header>
         <div className="experience-card-grid motion-item">
           {career.map((item) => (
@@ -832,7 +899,7 @@ function SystemSection() {
     <section className="chapter chapter-system" id="wanying" data-chapter="2">
       <div className="system-screen-ui motion-item" data-narrative-anchor="system" data-thread-x="0.08" data-thread-y="0.12">
         <header className="system-screen-ui__header">
-          <div><p className="eyebrow">WANYING DESIGN SYSTEM</p><h2>让复杂产品，共享同一种语言。</h2></div>
+          <div><p className="eyebrow">WANYING DESIGN SYSTEM</p><h2>让复杂产品，共享同一种语言。</h2><p className="system-screen-ui__sub">万应低代码设计系统 · 从 Token 到组件到治理的完整构建实践</p></div>
           <div className="system-status"><span>05 MODULES</span><span>LIVE LIBRARY</span><small>DESIGN × CODE × GOVERNANCE</small></div>
         </header>
         <div className="system-screen-ui__body">
@@ -843,11 +910,10 @@ function SystemSection() {
           <aside className="system-module-console">
             <div className="system-module-summary" key={module.id}>
               <span>{module.index}</span><small>{module.caption}</small><h3>{module.title}</h3><p>{module.description}</p>
-              <p className="system-module-detail">{module.detail}</p>
               <button type="button" onClick={() => setPreview(module)}>PREVIEW MODULE</button>
             </div>
             <div className="system-screen-tabs" role="tablist" aria-label="万应设计系统示例">
-              {systemModules.map((item, index) => <button type="button" role="tab" aria-selected={active === index} className={active === index ? "is-active" : ""} key={item.id} onClick={() => setActive(index)}><span>{item.index}</span><strong>{item.title}</strong><small>{item.caption}</small></button>)}
+              {systemModules.map((item, index) => <button type="button" role="tab" aria-selected={active === index} className={active === index ? "is-active" : ""} key={item.id} onClick={() => setActive(index)}><span>{item.index}</span><strong>{item.tabEn}</strong><div className="system-screen-tabs__sub"><small>{item.tabLabel}</small><i>{item.caption}</i></div></button>)}
             </div>
           </aside>
         </div>
@@ -855,7 +921,7 @@ function SystemSection() {
       {preview && (
         <div className="system-preview-lightbox" role="dialog" aria-modal="true" aria-label={`${preview.title} 图片预览`} onClick={(e) => { if (e.target === e.currentTarget) setPreview(null); }}>
           <button type="button" onClick={() => setPreview(null)}>CLOSE</button>
-          <figure><img src={preview.image} alt={`${preview.title} 完整预览`} /><figcaption><span>{preview.index}</span><div><strong>{preview.title}</strong><small>{preview.description}</small></div></figcaption></figure>
+          <figure><ZoomableImage src={preview.image} alt={`${preview.title} 完整预览`} /><figcaption><span>{preview.index}</span><div><strong>{preview.title}</strong><small>{preview.description}</small></div></figcaption></figure>
         </div>
       )}
       {open && (
@@ -1114,7 +1180,7 @@ function ProjectDetail({ project, onClose }) {
           )}
         </section>
       </article>
-      {preview && <div className="project-image-lightbox" role="dialog" aria-modal="true" aria-label="项目界面预览" onClick={(e) => { if (e.target === e.currentTarget) setPreview(null); }}><button type="button" onClick={() => setPreview(null)}>CLOSE</button><img src={preview} alt={`${project.title} 项目界面`} /></div>}
+      {preview && <div className="project-image-lightbox" role="dialog" aria-modal="true" aria-label="项目界面预览" onClick={(e) => { if (e.target === e.currentTarget) setPreview(null); }}><button type="button" onClick={() => setPreview(null)}>CLOSE</button><ZoomableImage src={preview} alt={`${project.title} 项目界面`} /></div>}
     </div>
   );
 }
@@ -1126,8 +1192,8 @@ function ProjectsSection() {
       <div className="projects-panel scene-panel" data-narrative-anchor="projects" data-thread-x="0.92" data-thread-y="0.12">
         <header className="scene-heading motion-item">
           <p className="eyebrow">SELECTED PROJECTS / 03</p>
-          <h2>用项目证明，如何解决复杂问题。</h2>
-          <p>从系统建设、企业管理到移动服务，基于如何理解业务、定义问题、组织信息，并把设计真正推进到落地。</p>
+          <h2>用项目证明，我不只做视觉。</h2>
+          <p>从系统建设、企业管理到移动服务，每一个项目都在证明：如何理解业务、定义问题、组织信息，并把设计真正推进到可落地的产品。</p>
         </header>
         <div className="project-cover-grid motion-item">
           {projects.map((item, index) => (
@@ -1230,7 +1296,7 @@ function GraphicSection() {
   return (
     <section className="chapter chapter-graphic" id="graphic" data-chapter="4">
       <div className="graphic-panel scene-panel" data-narrative-anchor="graphic" data-thread-x="0.08" data-thread-y="0.12">
-        <header className="scene-heading motion-item"><p className="eyebrow">GRAPHIC ARCHIVE / {String(items.length).padStart(2, "0")}</p><h2>在界面之外，<br />继续构建<br />设计语言。</h2><p>从品牌视觉、海报与版式，到图形系统与动态实验，为不同内容建立清晰而有辨识度的视觉表达。</p><button type="button" className="chapter-action" onClick={() => setArchiveOpen(true)}>EXPLORE ARCHIVE / 浏览完整作品</button></header>
+        <header className="scene-heading motion-item"><p className="eyebrow">GRAPHIC ARCHIVE / {String(items.length).padStart(2, "0")}</p><h2>在界面之外，<br />继续构建<br />设计语言。</h2><p>从品牌视觉、海报与版式，到图形系统与动态实验——证明我不只处理复杂产品问题，同样能驾驭多元视觉表达。</p><button type="button" className="chapter-action" onClick={() => setArchiveOpen(true)}>EXPLORE ARCHIVE / 浏览完整作品</button></header>
         <div className="graphic-drift motion-item">
           <DriftWall
             items={driftItems}
@@ -1268,7 +1334,7 @@ function GraphicSection() {
       {selected && (
         <div className="work-lightbox" role="dialog" aria-modal="true" aria-label={selected.title} onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
           <button type="button" onClick={() => setSelected(null)}>CLOSE</button>
-          <img src={selected.src} alt={selected.title} />
+          <ZoomableImage src={selected.src} alt={selected.title} />
           <p>{selected.title}<small>{selected.type}</small></p>
         </div>
       )}
@@ -1295,7 +1361,7 @@ function VibeSection() {
   return (
     <section className="chapter chapter-vibe" id="vibe" data-chapter="5">
       <div className="vibe-showcase scene-panel" data-narrative-anchor="vibe" data-thread-x="0.5" data-thread-y="0.08">
-        <header className="scene-heading scene-heading--center motion-item"><p className="eyebrow">VIBE CODING / PERSONAL LAB</p><h2>把设计判断，转为可运行产品。</h2><p>从需求拆解、体验架构到界面实现，通过 Vibe Coding 独立构建工具与应用，让设计判断成为可以验证、迭代和交付的产品。</p></header>
+        <header className="scene-heading scene-heading--center motion-item"><p className="eyebrow">VIBE CODING / PRODUCT BUILDER LAB</p><h2>不只使用 AI，而是把它变成产品。</h2><p>这里没有设计稿和开发交付的割裂——每个项目都从想法出发，经过设计、AI 协作与代码实现，最终跑在浏览器里，可以被使用、被验证。</p></header>
         <div className="vibe-card-row motion-item">
           {vibeProjects.map((item, index) => (
             <article className="vibe-preview-card interactive-card" key={item.code}>
