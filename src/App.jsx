@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { gsap } from "gsap";
 import { career, chapters, projects, systemModules, vibeProjects, works } from "./data.js";
 import { ProfileBadge } from "./ProfileBadge.jsx";
+import DriftWall from "./components/DriftWall.jsx";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
@@ -523,6 +524,75 @@ function AboutSection() {
   );
 }
 
+function CareerStageDetail({ onClose }) {
+  const rootRef = useRef(null);
+
+  useLayoutEffect(() => {
+    document.body.classList.add("modal-open");
+    const closeOnEscape = (event) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", closeOnEscape);
+    const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
+    timeline
+      .fromTo(rootRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 })
+      .fromTo(rootRef.current.querySelectorAll(".cm"), { y: 30, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.7, stagger: 0.12 }, "<0.08");
+    return () => {
+      timeline.kill();
+      window.removeEventListener("keydown", closeOnEscape);
+      document.body.classList.remove("modal-open");
+    };
+  }, [onClose]);
+
+  return (
+    <div ref={rootRef} className="career-overlay" role="dialog" aria-modal="true" aria-label="职业经历四个阶段">
+      <button type="button" className="info-overlay__close" onClick={onClose}>CLOSE</button>
+      <div className="career-overlay__inner">
+        <header className="career-overlay__head cm">
+          <p className="eyebrow">CAREER TIMELINE / 2015—NOW</p>
+          <h2>四个阶段，一条成长路径。</h2>
+        </header>
+
+        <div className="career-line">
+          {career.map((stage, index) => (
+            <div className="career-line__stage cm" key={stage.version}>
+              <div className="career-line__top">
+                <span className="career-line__ver">{stage.version}</span>
+                <span className="career-line__period">{stage.period}</span>
+                <span className="career-line__stage-en">{stage.stage}</span>
+              </div>
+
+              <div className="career-line__keyword">{stage.keyword}</div>
+              <h3 className="career-line__role">{stage.role}</h3>
+              <p className="career-line__en">{stage.en}</p>
+
+              <p className="career-line__overview">{stage.overview}</p>
+
+              <ul className="career-line__focus">
+                {stage.focus.map((f) => <li key={f}>{f}</li>)}
+              </ul>
+
+              <div className="career-line__deliveries">
+                <small>KEY DELIVERIES</small>
+                <ul>
+                  {stage.deliveries.map((d) => <li key={d}>{d}</li>)}
+                </ul>
+              </div>
+
+              <blockquote className="career-line__lesson">{stage.lesson}</blockquote>
+
+              {index < career.length - 1 && (
+                <div className="career-line__shift" aria-hidden="true">
+                  <span className="career-line__arrow">▶▶▶</span>
+                  <small>{stage.shift}</small>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExperienceSection() {
   const [open, setOpen] = useState(false);
   return (
@@ -541,20 +611,7 @@ function ExperienceSection() {
           ))}
         </div>
       </div>
-      {open && (
-        <InfoOverlay eyebrow="CAREER TIMELINE" title="四个阶段，一条路径。" onClose={() => setOpen(false)}>
-          <div className="career-detail-grid">
-            {career.map((item) => (
-              <article className="career-detail" key={item.version}>
-                <span>{item.version}</span>
-                <p>{item.period}</p>
-                <h3>{item.role}</h3>
-                <small>{item.note}</small>
-              </article>
-            ))}
-          </div>
-        </InfoOverlay>
-      )}
+      {open && <CareerStageDetail onClose={() => setOpen(false)} />}
     </section>
   );
 }
@@ -697,6 +754,36 @@ function ProjectGallery({ project, onOpen }) {
   );
 }
 
+function CapabilityRadar({ data }) {
+  const size = 220;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 78;
+  const levels = 4;
+  const count = data.length;
+  const angle = (i) => (Math.PI * 2 * i) / count - Math.PI / 2;
+  const point = (i, r) => [cx + Math.cos(angle(i)) * r, cy + Math.sin(angle(i)) * r];
+  const polyPoints = (r) => data.map((_, i) => point(i, r).join(",")).join(" ");
+  const dataPoints = data.map((d, i) => point(i, (d.value / 100) * radius).join(",")).join(" ");
+  return (
+    <svg className="case-radar" viewBox={`0 0 ${size} ${size}`} role="img" aria-label="能力雷达">
+      {Array.from({ length: levels }).map((_, lvl) => {
+        const r = (radius * (lvl + 1)) / levels;
+        return <polygon key={lvl} className="case-radar__grid" points={polyPoints(r)} />;
+      })}
+      {data.map((_, i) => {
+        const [x, y] = point(i, radius);
+        return <line key={i} className="case-radar__axis" x1={cx} y1={cy} x2={x} y2={y} />;
+      })}
+      <polygon className="case-radar__value" points={dataPoints} />
+      {data.map((d, i) => {
+        const [x, y] = point(i, radius + 16);
+        return <text key={i} className="case-radar__label" x={x} y={y} textAnchor="middle" dominantBaseline="middle">{d.label}</text>;
+      })}
+    </svg>
+  );
+}
+
 function ProjectDetail({ project, onClose }) {
   const detailRef = useRef(null);
   const [preview, setPreview] = useState(null);
@@ -715,25 +802,162 @@ function ProjectDetail({ project, onClose }) {
     timeline
       .fromTo(detailRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25 })
       .fromTo(detailRef.current.querySelector(".detail-gallery"), { scale: 1.04, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.7 }, "<")
-      .fromTo(detailRef.current.querySelectorAll(".detail-copy > *"), { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.55, stagger: 0.06 }, "<0.12");
+      .fromTo(detailRef.current.querySelectorAll(".case-motion"), { y: 22, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.55, stagger: 0.04 }, "<0.1");
     return () => timeline.kill();
   }, [project]);
 
+  const meta = project.meta || {};
+  const pains = project.pains || [];
+  const coreDesign = project.coreDesign || [];
+  const contributionSplit = project.contributionSplit || [];
+  const timelinePhases = project.timeline || [];
+  const capabilities = project.capabilities || [];
+  const outcomeBars = project.outcomeBars || [];
+  const stack = project.stack || [];
+  const maxSplit = Math.max(...contributionSplit.map((s) => s.value), 1);
+
   return (
-    <div ref={detailRef} className="detail-overlay" role="dialog" aria-modal="true" aria-labelledby="project-title">
+    <div ref={detailRef} className="detail-overlay detail-overlay--case" role="dialog" aria-modal="true" aria-labelledby="project-title">
       <button type="button" className="detail-close" onClick={onClose}>CLOSE</button>
       <ProjectGallery project={project} onOpen={setPreview} />
-      <article className="detail-copy">
-        <div className="detail-topline"><span>{project.code} / CASE STUDY</span><small>{project.type}</small></div>
-        <h2 id="project-title">{project.title}</h2>
-        <p className="detail-role">{project.role}</p>
-        <p className="detail-lead">{project.brief}</p>
-        <div className="detail-metrics">
-          {project.metrics.map(([value, label]) => <span key={label}><strong>{value}</strong>{label}</span>)}
-        </div>
-        <div className="detail-notes">
-          {project.details.map(([label, text], index) => <article key={label}><span>0{index + 1}</span><div><strong>{label}</strong><p>{text}</p></div></article>)}
-        </div>
+      <article className="case-stage">
+        <header className="case-head case-motion">
+          <div className="case-head__top">
+            <span>{project.code} / CASE STUDY</span>
+            <small>{project.type}</small>
+          </div>
+          <h2 id="project-title">{project.title}</h2>
+          <p className="case-head__role">{project.role}</p>
+        </header>
+
+        <section className="case-meta case-motion" aria-label="基础信息">
+          {meta.type && <div><i>项目类型</i><b>{meta.type}</b></div>}
+          {meta.role && <div><i>我的角色</i><b>{meta.role}</b></div>}
+          {meta.period && <div><i>项目周期</i><b>{meta.period}</b></div>}
+          {meta.status && <div><i>项目状态</i><b>{meta.status}</b></div>}
+          {meta.year && <div><i>完成时间</i><b>{meta.year}</b></div>}
+        </section>
+
+        <section className="case-metrics case-motion" aria-label="关键指标">
+          {project.metrics.map(([value, label]) => <span key={label}><strong>{value}</strong><small>{label}</small></span>)}
+        </section>
+
+        <section className="case-block case-motion" aria-labelledby="sec-01">
+          <header className="case-block__head"><span>01</span><div><strong>项目概述</strong><small>PROJECT OVERVIEW</small></div></header>
+          <p className="case-block__lead">{project.overview}</p>
+        </section>
+
+        <section className="case-block case-motion" aria-labelledby="sec-02">
+          <header className="case-block__head"><span>02</span><div><strong>项目目标</strong><small>PROJECT GOAL</small></div></header>
+          <div className="case-pains">
+            <div className="case-pains__list">
+              {pains.map((pain) => (
+                <article className="pain-card" key={pain.tag}>
+                  <span>{pain.tag}</span>
+                  <strong>{pain.title}</strong>
+                  <p>{pain.desc}</p>
+                </article>
+              ))}
+            </div>
+            <aside className="case-goal">
+              <small>GOAL</small>
+              <p>{project.goal}</p>
+            </aside>
+          </div>
+        </section>
+
+        <section className="case-block case-motion" aria-labelledby="sec-03">
+          <header className="case-block__head"><span>03</span><div><strong>我的贡献</strong><small>MY CONTRIBUTION</small></div></header>
+          <p className="case-block__lead">{project.contribution}</p>
+          <ul className="case-tags">
+            {project.contributionTags.map((tag) => <li key={tag}>{tag}</li>)}
+          </ul>
+          {contributionSplit.length > 0 && (
+            <div className="case-split" aria-label="贡献分布">
+              {contributionSplit.map((item) => (
+                <div className="case-split__row" key={item.label}>
+                  <span>{item.label}</span>
+                  <div className="case-split__track"><i style={{ width: `${(item.value / maxSplit) * 100}%` }} /></div>
+                  <b>{item.value}%</b>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="case-block case-motion" aria-labelledby="sec-04">
+          <header className="case-block__head"><span>04</span><div><strong>核心设计</strong><small>CORE DESIGN</small></div></header>
+          <ul className="case-core">
+            {coreDesign.map((item, index) => (
+              <li key={index}>
+                <div className="case-core__no">{String(index + 1).padStart(2, "0")}</div>
+                <div className="case-core__body">
+                  <div className="case-core__problem">
+                    <small>PROBLEM</small>
+                    <strong>{item.problem}</strong>
+                  </div>
+                  <div className="case-core__arrow" aria-hidden="true">→</div>
+                  <div className="case-core__insight">
+                    <small>INSIGHT</small>
+                    <span>{item.insight}</span>
+                  </div>
+                  <div className="case-core__arrow" aria-hidden="true">→</div>
+                  <div className="case-core__solution">
+                    <small>SOLUTION</small>
+                    <p>{item.solution}</p>
+                  </div>
+                  <div className="case-core__impact">{item.impact}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {timelinePhases.length > 0 && (
+          <section className="case-block case-motion" aria-labelledby="sec-05a">
+            <header className="case-block__head"><span>05</span><div><strong>设计流程</strong><small>PROCESS</small></div></header>
+            <ol className="case-timeline">
+              {timelinePhases.map((phase, index) => (
+                <li key={index}>
+                  <div className="case-timeline__dot" aria-hidden="true">{String(index + 1).padStart(2, "0")}</div>
+                  <div className="case-timeline__body">
+                    <small>{phase.phase}</small>
+                    <strong>{phase.title}</strong>
+                    <p>{phase.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        <section className="case-block case-motion" aria-labelledby="sec-05b">
+          <header className="case-block__head"><span>05</span><div><strong>设计与实现</strong><small>DESIGN TO PRODUCT</small></div></header>
+          {capabilities.length > 0 && (
+            <div className="case-cap">
+              <CapabilityRadar data={capabilities} />
+              <ul className="case-stack">
+                {stack.map((tool) => <li key={tool}>{tool}</li>)}
+              </ul>
+            </div>
+          )}
+        </section>
+
+        <section className="case-block case-motion" aria-labelledby="sec-06">
+          <header className="case-block__head"><span>06</span><div><strong>项目成果</strong><small>PROJECT OUTCOME</small></div></header>
+          <p className="case-block__lead">{project.outcome}</p>
+          {outcomeBars.length > 0 && (
+            <div className="case-outcome" aria-label="成果可视化">
+              {outcomeBars.map((bar) => (
+                <div className="case-outcome__row" key={bar.label}>
+                  <div className="case-outcome__label"><span>{bar.label}</span><small>{bar.caption}</small></div>
+                  <div className="case-outcome__track"><i style={{ width: `${bar.value}%` }} /></div>
+                  <b>{bar.value}</b>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </article>
       {preview && <div className="project-image-lightbox" role="dialog" aria-modal="true" aria-label="项目界面预览" onClick={(e) => { if (e.target === e.currentTarget) setPreview(null); }}><button type="button" onClick={() => setPreview(null)}>CLOSE</button><img src={preview} alt={`${project.title} 项目界面`} /></div>}
     </div>
@@ -764,7 +988,7 @@ function ProjectsSection() {
   );
 }
 
-function GraphicCarousel({ onOpen }) {
+function GraphicCarousel({ items, onOpen }) {
   const stageRef = useRef(null);
   const cleanupsRef = useRef([]);
   const tracksRef = useRef([]);
@@ -774,13 +998,12 @@ function GraphicCarousel({ onOpen }) {
     tracksRef.current = tracks;
     cleanupsRef.current = tracks.map((track, index) => marqueeLaunch(track, index === 1 ? -1 : 1, index + 4));
     return () => cleanupsRef.current.forEach((cleanup) => cleanup());
-  }, []);
+  }, [items]);
 
-  const columns = [0, 1, 2].map((column) => works.filter((_, index) => index % 3 === column));
+  const columns = [0, 1, 2].map((column) => items.filter((_, index) => index % 3 === column));
   const wheelResetRef = useRef(null);
   const baseDurationRef = useRef([]);
   const respondToWheel = () => {
-    // Temporarily speed up the marquee while the user scrolls, then ease back.
     tracksRef.current.forEach((track, index) => {
       if (!baseDurationRef.current[index]) {
         const raw = track.style.getPropertyValue("--marquee-duration") || "26s";
@@ -800,12 +1023,12 @@ function GraphicCarousel({ onOpen }) {
 
   return (
     <div className="graphic-carousel graphic-loop motion-item" ref={stageRef} onWheel={respondToWheel}>
-      <div className="graphic-loop__meta"><span>{String(works.length).padStart(2, "0")} WORKS</span><small>SCROLL TO ACCELERATE</small></div>
+      <div className="graphic-loop__meta"><span>{String(items.length).padStart(2, "0")} WORKS</span><small>SCROLL TO ACCELERATE</small></div>
       <div className="graphic-loop__columns">
         {columns.map((column, columnIndex) => (
           <div className="graphic-column" key={columnIndex}>
             <div className="graphic-column__track" onMouseEnter={pauseColumn} onMouseLeave={resumeColumn}>
-              {[...column, ...column].map((work, index) => <button type="button" className="graphic-slide interactive-card" key={`${work.src}-${columnIndex}-${index}`} onClick={() => onOpen(work)}><img src={work.src} alt={work.title} /><span><small>{work.type}</small><strong>{work.title}</strong></span></button>)}
+              {[...column, ...column].map((work, index) => <button type="button" className="graphic-slide interactive-card" key={`${work.src}-${columnIndex}-${index}`} onClick={() => onOpen(work)}><img src={work.src} alt={work.title} loading="lazy" /><span><small>{work.type}</small><strong>{work.title}</strong></span></button>)}
             </div>
           </div>
         ))}
@@ -817,18 +1040,77 @@ function GraphicCarousel({ onOpen }) {
 function GraphicSection() {
   const [selected, setSelected] = useState(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [items, setItems] = useState(works);
+  const [activeWork, setActiveWork] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/library-images?dir=05-graphic")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((files) => {
+        if (!alive || !Array.isArray(files) || !files.length) return;
+        const list = files.map((file, index) => {
+          const base = file.replace(/\.(png|jpe?g|webp)$/i, "");
+          const fallback = works.find((w) => w.src.includes(base)) || {};
+          return {
+            src: `/assets/library/05-graphic/${file}`,
+            title: fallback.title || base,
+            type: fallback.type || "GRAPHIC / ARCHIVE",
+          };
+        });
+        setItems(list);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const driftItems = items.map((w) => ({ image: w.src, title: w.title, href: undefined, __raw: w }));
+  const handleTileActivate = useCallback((item) => {
+    setActiveWork(item?.__raw ?? null);
+  }, []);
+
   return (
     <section className="chapter chapter-graphic" id="graphic" data-chapter="4">
       <div className="graphic-panel scene-panel" data-narrative-anchor="graphic" data-thread-x="0.08" data-thread-y="0.12">
-        <header className="scene-heading motion-item"><p className="eyebrow">GRAPHIC ARCHIVE / {String(works.length).padStart(2, "0")}</p><h2>在界面之外，<br />继续构建<br />设计语言。</h2><p>从品牌视觉、海报与版式，到图形系统与动态实验，为不同内容建立清晰而有辨识度的视觉表达。</p><button type="button" className="chapter-action" onClick={() => setArchiveOpen(true)}>EXPLORE ARCHIVE / 浏览完整作品</button></header>
-        <GraphicCarousel onOpen={setSelected} />
+        <header className="scene-heading motion-item"><p className="eyebrow">GRAPHIC ARCHIVE / {String(items.length).padStart(2, "0")}</p><h2>在界面之外，<br />继续构建<br />设计语言。</h2><p>从品牌视觉、海报与版式，到图形系统与动态实验，为不同内容建立清晰而有辨识度的视觉表达。</p><button type="button" className="chapter-action" onClick={() => setArchiveOpen(true)}>EXPLORE ARCHIVE / 浏览完整作品</button></header>
+        <div className="graphic-drift motion-item">
+          <DriftWall
+            items={driftItems}
+            columns={5}
+            tileWidth={170}
+            tileHeight={120}
+            gap={14}
+            radius={10}
+            tilt={14}
+            turn={-12}
+            perspective={1200}
+            depth={110}
+            speed={38}
+            direction="up"
+            variance={0.45}
+            parallax={0.55}
+            pauseOnHover
+            lift={56}
+            fade={0.6}
+            dim={0.5}
+            overlayColor="#050505"
+            onTileActivate={handleTileActivate}
+          />
+          <div className="graphic-drift__caption">
+            {activeWork ? (
+              <><span>{activeWork.type}</span><strong>{activeWork.title}</strong><button type="button" onClick={() => setSelected(activeWork)}>VIEW</button></>
+            ) : (
+              <><span>HOVER A TILE</span><strong>{String(items.length).padStart(2, "0")} WORKS</strong><small>SCROLL TO BROWSE</small></>
+            )}
+          </div>
+        </div>
       </div>
       {archiveOpen && (
-        <InfoOverlay eyebrow="GRAPHIC ARCHIVE" title="视觉定格 / 06" onClose={() => setArchiveOpen(false)} className="graphic-overlay">
+        <InfoOverlay eyebrow="GRAPHIC ARCHIVE" title={`视觉定格 / ${String(items.length).padStart(2, "0")}`} onClose={() => setArchiveOpen(false)} className="graphic-overlay">
           <div className="archive-grid">
-            {works.map((work, index) => (
+            {items.map((work, index) => (
               <button type="button" className="archive-item" key={work.src} onClick={() => setSelected(work)}>
-                <img src={work.src} alt={work.title} />
+                <img src={work.src} alt={work.title} loading="lazy" />
                 <span><small>0{index + 1} · {work.type}</small><strong>{work.title}</strong></span>
               </button>
             ))}
