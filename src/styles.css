@@ -4830,3 +4830,49 @@ body:has([role="dialog"]) .cinematic-loading-notice { visibility: hidden; }
   }
   .vibe-build-notes article { grid-template-columns: 32px minmax(0,1fr); padding: 15px; }
 }
+
+/* Phone header: one aligned utility row. The reading notice starts immediately
+   after MENU so it never competes with the contact ticket on the right. */
+@media (max-width: 760px) {
+  .chapter-nav::after {
+    top: max(25px, calc(env(safe-area-inset-top) + 15px));
+    left: 74px;
+    z-index: 79;
+    padding: 7px 9px;
+    color: rgba(255,255,255,.88);
+    background: rgba(8,10,11,.48);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 2px;
+    font-size: 9px;
+    line-height: 1.2;
+    letter-spacing: .025em;
+    box-shadow: 0 8px 22px rgba(0,0,0,.14);
+    backdrop-filter: blur(16px) saturate(1.05);
+    -webkit-backdrop-filter: blur(16px) saturate(1.05);
+    transform: none;
+  }
+  .chapter-nav.is-open::after,
+  body:has([role="dialog"]) .chapter-nav::after { display: none; }
+
+  /* Expand the actual ticket face, not merely its hit target: both lanyard
+     anchors now begin under the opaque ticket rather than peeking beside it. */
+  .identity-badge {
+    top: max(10px, env(safe-area-inset-top));
+    right: 16px;
+  }
+  .identity-badge__trigger-shell.border-glow-card,
+  .identity-badge__trigger { min-width: 176px; }
+  .identity-badge__trigger { min-height: 62px; }
+
+  /* The modal exit shares the same 41px visual center as MENU and the ticket. */
+  .overlay-fixed-close,
+  .detail-close,
+  .info-overlay__close,
+  .system-preview-lightbox > button,
+  .project-image-lightbox > button,
+  .work-lightbox > button,
+  .wechat-qr-close,
+  .local-app-modal__close {
+    top: max(19px, calc(env(safe-area-inset-top) + 9px)) !important;
+  }
+}
