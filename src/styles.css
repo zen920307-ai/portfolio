@@ -4556,6 +4556,79 @@ main { position: relative; }
 .vibe-build-notes p b { color: #fff; font-weight: 650; }
 
 @media (min-width: 761px) {
+  /* PC navigation: a quiet chapter index, intentionally separate from the
+     full-screen mobile menu. No container card, no repeated dividers. */
+  .chapter-nav {
+    top: 50%;
+    left: clamp(24px, 3vw, 54px);
+    width: min(190px, 16vw);
+    display: block;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .chapter-nav .nav-burger { display: none; }
+  .chapter-nav .nav-stack {
+    display: grid;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .chapter-nav .nav-item {
+    position: relative;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 0 9px 12px;
+    border: 0 !important;
+    border-radius: 0;
+    background: transparent !important;
+    color: rgba(255,255,255,.46);
+    box-shadow: none !important;
+  }
+  .chapter-nav .nav-item::before,
+  .chapter-nav .nav-item::after { display: none !important; }
+  .chapter-nav .nav-item:hover,
+  .chapter-nav .nav-item.is-active {
+    padding-left: 12px;
+    color: #fff;
+  }
+  .chapter-nav .nav-index {
+    color: rgba(255,255,255,.28);
+    font: 700 8px/1.2 ui-monospace, Consolas, monospace;
+    letter-spacing: .1em;
+  }
+  .chapter-nav .nav-item.is-active .nav-index { color: var(--accent); }
+  .chapter-nav .nav-label { display: grid; gap: 3px; }
+  .chapter-nav .nav-label strong { font-size: 10px; letter-spacing: .13em; }
+  .chapter-nav .nav-label small { color: rgba(255,255,255,.34); font-size: 8px; letter-spacing: .08em; }
+  .chapter-nav .nav-item.is-active .nav-label small { color: rgba(255,255,255,.58); }
+  .chapter-nav .nav-state { display: none; }
+  .chapter-nav .nav-rail {
+    left: 0;
+    width: 1px;
+    height: 0;
+    background: var(--accent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .chapter-nav .nav-item.is-active .nav-rail { height: 27px; }
+  .chapter-nav .nav-footer {
+    min-height: 0;
+    display: grid;
+    gap: 5px;
+    margin-top: 16px;
+    padding: 12px 0 0 12px;
+    border-top: 1px solid rgba(255,255,255,.14);
+    color: rgba(255,255,255,.28);
+    font-size: 7px;
+  }
+  .chapter-nav .nav-footer small { color: var(--accent); }
+
   /* Desktop Vibe cases are a deliberate editorial spread: the overview is
      scannable at a glance, and the deeper build narrative reads as a set of
      equal working notes rather than one long mobile column. */
