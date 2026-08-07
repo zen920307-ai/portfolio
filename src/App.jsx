@@ -17,14 +17,16 @@ const FRAME_CACHE_NAME = "tang-portfolio-frames-v2";
 const framePath = (segment, frameIndex) => (
   `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
 );
-// The opening scene is primed as one contiguous sequence. This keeps the
-// first movement fluid without making visitors wait for the whole 1,200-frame
-// archive. Every URL still points at the original 1920 x 1080 source frame.
-const OPENING_FRAME_COUNT = 48;
+// The first three full sequences are ready before entry. This makes the first
+// half of the narrative play at its intended cadence while the final two
+// sequences continue in the background. Every URL is the original 1920 x
+// 1080 source frame.
+const BOOT_SEGMENT_COUNT = 3;
+const BACKGROUND_SEGMENT_COUNT = FRAME_COUNTS.length - BOOT_SEGMENT_COUNT;
 const CRITICAL_FRAME_URLS = Array.from(
-  { length: OPENING_FRAME_COUNT },
-  (_, frameIndex) => framePath(0, frameIndex),
-);
+  { length: BOOT_SEGMENT_COUNT },
+  (_, segment) => Array.from({ length: FRAME_COUNTS[segment] }, (_, frameIndex) => framePath(segment, frameIndex)),
+).flat();
 let criticalFramePromise = null;
 const backgroundFramePromises = new Map();
 const framePreloadListeners = new Set();
@@ -72,7 +74,7 @@ async function cacheCriticalFrames() {
   return criticalFramePromise;
 }
 
-function warmFrameWindow(segment, start = 0, count = 96) {
+function warmFrameWindow(segment, start = 0, count = 96, onProgress) {
   if (!("caches" in window) || segment < 0 || segment >= FRAME_COUNTS.length) return Promise.resolve();
   const end = Math.min(FRAME_COUNTS[segment], start + count);
   const urls = Array.from({ length: Math.max(0, end - start) }, (_, offset) => framePath(segment, start + offset));
@@ -89,8 +91,10 @@ function warmFrameWindow(segment, start = 0, count = 96) {
       })().catch(() => undefined);
       backgroundFramePromises.set(url, task);
       await task;
+      onProgress?.();
     }
   };
+  existing.forEach((task) => task.finally(() => onProgress?.()));
   return Promise.all([...existing, ...Array.from({ length: 4 }, worker)]);
 }
 
@@ -98,13 +102,27 @@ function useFrameBootloader() {
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
+  const [backgroundProgress, setBackgroundProgress] = useState(0);
+  const [backgroundReady, setBackgroundReady] = useState(false);
   const run = useCallback(() => {
     setError(false);
+    setBackgroundProgress(0);
+    setBackgroundReady(false);
     cacheCriticalFrames().then(() => {
       setReady(true);
-      // Finish the rest of scene one immediately after entry. Subsequent
-      // scenes stay demand-led, avoiding a hidden 1,200-image waterfall.
-      window.setTimeout(() => warmFrameWindow(0, OPENING_FRAME_COUNT, 240 - OPENING_FRAME_COUNT), 0);
+      let completed = 0;
+      const total = BACKGROUND_SEGMENT_COUNT * FRAME_COUNTS[0];
+      const reportBackgroundProgress = () => {
+        completed += 1;
+        setBackgroundProgress(Math.min(100, Math.round((completed / total) * 100)));
+      };
+      Promise.all([
+        warmFrameWindow(3, 0, FRAME_COUNTS[3], reportBackgroundProgress),
+        warmFrameWindow(4, 0, FRAME_COUNTS[4], reportBackgroundProgress),
+      ]).then(() => {
+        setBackgroundProgress(100);
+        setBackgroundReady(true);
+      });
     }).catch(() => setError(true));
   }, []);
 
@@ -119,7 +137,16 @@ function useFrameBootloader() {
     return () => document.documentElement.classList.remove("is-loading");
   }, [ready]);
 
-  return { progress, ready, error, retry: run };
+  return { progress, ready, error, retry: run, backgroundProgress, backgroundReady };
+}
+
+function CinematicLoadingNotice({ progress }) {
+  return (
+    <aside className="cinematic-loading-notice" aria-live="polite">
+      <span className="cinematic-loading-notice__spinner" aria-hidden="true" />
+      <span><b>高清动态帧正在准备 {String(progress).padStart(3, "0")}%</b><small>偶发卡顿不代表最终效果</small></span>
+    </aside>
+  );
 }
 
 function LoadingScreen({ progress, ready, error, onRetry }) {
@@ -1899,7 +1926,14 @@ function VibeSection() {
 export function App() {
   const [activeChapter, setActiveChapter] = useState(0);
   const [navigationOpen, setNavigationOpen] = useState(false);
-  const { progress: frameProgress, ready: framesReady, error: frameError, retry: retryFrames } = useFrameBootloader();
+  const {
+    progress: frameProgress,
+    ready: framesReady,
+    error: frameError,
+    retry: retryFrames,
+    backgroundProgress,
+    backgroundReady,
+  } = useFrameBootloader();
   const [loaderVisible, setLoaderVisible] = useState(true);
   const shellRef = useRef(null);
   // Shared flag so programmatic navigation (nav clicks) can suspend scroll snapping.
@@ -1912,22 +1946,6 @@ export function App() {
     const leaveTimer = window.setTimeout(() => setLoaderVisible(false), 720);
     return () => window.clearTimeout(leaveTimer);
   }, [framesReady]);
-
-  useEffect(() => {
-    if (!framesReady) return undefined;
-    const scene = Math.min(activeChapter, FRAME_COUNTS.length - 1);
-    const nextScene = Math.min(scene + 1, FRAME_COUNTS.length - 1);
-    // Keep the scene on screen and the one immediately ahead supplied. The
-    // second window waits until the visitor has had time to read, keeping the
-    // first visit light while preventing a fast page transition from stalling.
-    warmFrameWindow(scene, 0, 96);
-    if (nextScene !== scene) warmFrameWindow(nextScene, 0, 96);
-    const expandTimer = window.setTimeout(() => {
-      warmFrameWindow(scene, 96, 144);
-      if (nextScene !== scene) warmFrameWindow(nextScene, 96, 96);
-    }, 1800);
-    return () => window.clearTimeout(expandTimer);
-  }, [activeChapter, framesReady]);
 
   useEffect(() => {
     let frame = 0;
@@ -2107,6 +2125,7 @@ export function App() {
       <ChapterIndex index={activeChapter} />
       <GuideLine activeChapter={activeChapter} />
       <ProfileBadge hidden={navigationOpen} />
+      {framesReady && !backgroundReady && <CinematicLoadingNotice progress={backgroundProgress} />}
       <main>
         <AboutSection />
         <ExperienceSection />
