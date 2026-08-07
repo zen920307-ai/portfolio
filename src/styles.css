@@ -4590,7 +4590,12 @@ main { position: relative; }
     background: transparent !important;
     color: rgba(255,255,255,.46);
     box-shadow: none !important;
+    text-decoration: none !important;
   }
+  .chapter-nav .nav-item,
+  .chapter-nav .nav-item:visited,
+  .chapter-nav .nav-item:hover,
+  .chapter-nav .nav-item:focus-visible { text-decoration: none !important; }
   .chapter-nav .nav-item::before,
   .chapter-nav .nav-item::after { display: none !important; }
   .chapter-nav .nav-item:hover,
@@ -4623,7 +4628,7 @@ main { position: relative; }
     gap: 5px;
     margin-top: 16px;
     padding: 12px 0 0 12px;
-    border-top: 1px solid rgba(255,255,255,.14);
+    border-top: 0;
     color: rgba(255,255,255,.28);
     font-size: 7px;
   }
