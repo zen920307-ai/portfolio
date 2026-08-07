@@ -17,10 +17,6 @@ const FRAME_CACHE_NAME = "tang-portfolio-frames-v1";
 const framePath = (segment, frameIndex) => (
   `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
 );
-const ALL_FRAME_URLS = FRAME_COUNTS.flatMap((count, segment) => (
-  Array.from({ length: count }, (_, frameIndex) => framePath(segment, frameIndex))
-));
-
 // Enter after only the frames that make the first view feel alive. The other
 // 1,193 frames are requested naturally as visitors move through the story;
 // blocking first paint on the entire film made cold starts unnecessarily slow.
@@ -33,20 +29,8 @@ const CRITICAL_FRAME_URLS = [
   framePath(3, 0),
   framePath(4, 0),
 ];
-const FRAME_ENTRY_URLS = Array.from(
-  { length: 48 },
-  (_, frameIndex) => FRAME_COUNTS.map((_, segment) => framePath(segment, frameIndex)),
-).flat();
-const FRAME_ENTRY_URL_SET = new Set(FRAME_ENTRY_URLS);
-const FRAME_WARMUP_URLS = [
-  // Make every chapter's entrance available first, then fill the remaining
-  // film in natural scene order while the visitor is already browsing.
-  ...FRAME_ENTRY_URLS,
-  ...ALL_FRAME_URLS.filter((url) => !FRAME_ENTRY_URL_SET.has(url)),
-];
-
 let criticalFramePromise = null;
-let backgroundFrameWarmupPromise = null;
+const backgroundFramePromises = new Map();
 const framePreloadListeners = new Set();
 const emitFrameProgress = (value) => framePreloadListeners.forEach((listener) => listener(value));
 
@@ -92,30 +76,26 @@ async function cacheCriticalFrames() {
   return criticalFramePromise;
 }
 
-function warmFrameCacheInBackground() {
-  if (backgroundFrameWarmupPromise || !("caches" in window)) return backgroundFrameWarmupPromise;
-
-  backgroundFrameWarmupPromise = (async () => {
+function warmFrameWindow(segment, start = 0, count = 96) {
+  if (!("caches" in window) || segment < 0 || segment >= FRAME_COUNTS.length) return Promise.resolve();
+  const end = Math.min(FRAME_COUNTS[segment], start + count);
+  const urls = Array.from({ length: Math.max(0, end - start) }, (_, offset) => framePath(segment, start + offset));
+  const queued = urls.filter((url) => !backgroundFramePromises.has(url));
+  const existing = urls.filter((url) => backgroundFramePromises.has(url)).map((url) => backgroundFramePromises.get(url));
+  const worker = async () => {
     const cache = await caches.open(FRAME_CACHE_NAME);
-    const queue = [...FRAME_WARMUP_URLS];
-    const worker = async () => {
-      while (queue.length) {
-        const url = queue.shift();
-        if (!url || await cache.match(url)) continue;
-        try {
-          const response = await fetch(url, { cache: "force-cache" });
-          if (response.ok) await cache.put(url, response.clone());
-        } catch {
-          // Individual frames are still retried by the live backdrop when
-          // needed; a warm-up failure must never interrupt browsing.
-        }
-      }
-    };
-    await Promise.all(Array.from({ length: 4 }, worker));
-  })().catch(() => {
-    backgroundFrameWarmupPromise = null;
-  });
-  return backgroundFrameWarmupPromise;
+    while (queued.length) {
+      const url = queued.shift();
+      const task = (async () => {
+        if (await cache.match(url)) return;
+        const response = await fetch(url, { cache: "force-cache" });
+        if (response.ok) await cache.put(url, response.clone());
+      })().catch(() => undefined);
+      backgroundFramePromises.set(url, task);
+      await task;
+    }
+  };
+  return Promise.all([...existing, ...Array.from({ length: 4 }, worker)]);
 }
 
 function useFrameBootloader() {
@@ -126,10 +106,10 @@ function useFrameBootloader() {
     setError(false);
     cacheCriticalFrames().then(() => {
       setReady(true);
-      // Let the first view paint before using the connection for the rest of
-      // the film. Four fetch workers keep scroll continuity without starving
-      // the UI or primary assets.
-      window.setTimeout(warmFrameCacheInBackground, 250);
+      // Cache only the opening window of the first scene here. Further
+      // windows are scheduled by the active chapter below, so a first visit
+      // never turns into a hidden 1,200-image network waterfall.
+      window.setTimeout(() => warmFrameWindow(0, 0, 96), 250);
     }).catch(() => setError(true));
   }, []);
 
@@ -1935,6 +1915,22 @@ export function App() {
     const leaveTimer = window.setTimeout(() => setLoaderVisible(false), 720);
     return () => window.clearTimeout(leaveTimer);
   }, [framesReady]);
+
+  useEffect(() => {
+    if (!framesReady) return undefined;
+    const scene = Math.min(activeChapter, FRAME_COUNTS.length - 1);
+    const nextScene = Math.min(scene + 1, FRAME_COUNTS.length - 1);
+    // Keep the scene on screen and the one immediately ahead supplied. The
+    // second window waits until the visitor has had time to read, keeping the
+    // first visit light while preventing a fast page transition from stalling.
+    warmFrameWindow(scene, 0, 96);
+    if (nextScene !== scene) warmFrameWindow(nextScene, 0, 96);
+    const expandTimer = window.setTimeout(() => {
+      warmFrameWindow(scene, 96, 144);
+      if (nextScene !== scene) warmFrameWindow(nextScene, 96, 96);
+    }, 1800);
+    return () => window.clearTimeout(expandTimer);
+  }, [activeChapter, framesReady]);
 
   useEffect(() => {
     let frame = 0;
