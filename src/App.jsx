@@ -168,6 +168,12 @@ function LoadingScreen({ progress, ready, error, onRetry }) {
       <div className="lab-loader__backdrop" />
       <div className="lab-loader__grain" />
       <div className="lab-loader__mark" aria-hidden="true"><i /><i /><i /></div>
+      <div className="lab-loader__falling-ui" aria-hidden="true">
+        <i style={{ "--drop-x": "-168px", "--drop-side": "-34vw", "--drop-delay": "-.6s" }}><Layers3 /></i>
+        <i style={{ "--drop-x": "-54px", "--drop-side": "-18vw", "--drop-delay": "-2.2s" }}><MousePointerClick /></i>
+        <i style={{ "--drop-x": "68px", "--drop-side": "20vw", "--drop-delay": "-3.7s" }}><AppWindow /></i>
+        <i style={{ "--drop-x": "170px", "--drop-side": "35vw", "--drop-delay": "-5.1s" }}><Sparkles /></i>
+      </div>
       <div className="lab-loader__content">
         <p className="lab-loader__eyebrow">TANG QIDONG / DESIGN LAB</p>
         <h1>开场已就位，<br />马上进入设计现场。</h1>
