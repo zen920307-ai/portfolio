@@ -208,6 +208,7 @@ export function ProfileBadge({ hidden = false }) {
         colors={["#f3c600", "#fff3a0", "#8a7400"]}
       >
         <button type="button" className="identity-badge__trigger" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+          <i className="identity-badge__ticket-frame" aria-hidden="true" />
           <span>合作与交流</span>
           <em>CONTACT & COLLABORATION</em>
         </button>
