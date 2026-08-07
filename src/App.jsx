@@ -30,7 +30,13 @@ const CRITICAL_FRAME_URLS = Array.from(
 let criticalFramePromise = null;
 const backgroundFramePromises = new Map();
 const framePreloadListeners = new Set();
+const backgroundProgressListeners = new Set();
+let latestBackgroundProgress = 0;
 const emitFrameProgress = (value) => framePreloadListeners.forEach((listener) => listener(value));
+const emitBackgroundProgress = (value) => {
+  latestBackgroundProgress = value;
+  backgroundProgressListeners.forEach((listener) => listener(value));
+};
 
 async function cacheCriticalFrames() {
   if (criticalFramePromise) return criticalFramePromise;
@@ -95,18 +101,17 @@ function warmFrameWindow(segment, start = 0, count = 96, onProgress) {
     }
   };
   existing.forEach((task) => task.finally(() => onProgress?.()));
-  return Promise.all([...existing, ...Array.from({ length: 4 }, worker)]);
+  return Promise.all([...existing, ...Array.from({ length: 2 }, worker)]);
 }
 
 function useFrameBootloader() {
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
-  const [backgroundProgress, setBackgroundProgress] = useState(0);
   const [backgroundReady, setBackgroundReady] = useState(false);
   const run = useCallback(() => {
     setError(false);
-    setBackgroundProgress(0);
+    emitBackgroundProgress(0);
     setBackgroundReady(false);
     cacheCriticalFrames().then(() => {
       setReady(true);
@@ -114,13 +119,13 @@ function useFrameBootloader() {
       const total = BACKGROUND_SEGMENT_COUNT * FRAME_COUNTS[0];
       const reportBackgroundProgress = () => {
         completed += 1;
-        setBackgroundProgress(Math.min(100, Math.round((completed / total) * 100)));
+        emitBackgroundProgress(Math.min(100, Math.round((completed / total) * 100)));
       };
       Promise.all([
         warmFrameWindow(3, 0, FRAME_COUNTS[3], reportBackgroundProgress),
         warmFrameWindow(4, 0, FRAME_COUNTS[4], reportBackgroundProgress),
       ]).then(() => {
-        setBackgroundProgress(100);
+        emitBackgroundProgress(100);
         setBackgroundReady(true);
       });
     }).catch(() => setError(true));
@@ -137,10 +142,15 @@ function useFrameBootloader() {
     return () => document.documentElement.classList.remove("is-loading");
   }, [ready]);
 
-  return { progress, ready, error, retry: run, backgroundProgress, backgroundReady };
+  return { progress, ready, error, retry: run, backgroundReady };
 }
 
-function CinematicLoadingNotice({ progress }) {
+function CinematicLoadingNotice() {
+  const [progress, setProgress] = useState(latestBackgroundProgress);
+  useEffect(() => {
+    backgroundProgressListeners.add(setProgress);
+    return () => backgroundProgressListeners.delete(setProgress);
+  }, []);
   return (
     <aside className="cinematic-loading-notice" aria-live="polite">
       <span className="cinematic-loading-notice__spinner" aria-hidden="true" />
@@ -1937,7 +1947,6 @@ export function App() {
     ready: framesReady,
     error: frameError,
     retry: retryFrames,
-    backgroundProgress,
     backgroundReady,
   } = useFrameBootloader();
   const [loaderVisible, setLoaderVisible] = useState(true);
@@ -2131,7 +2140,7 @@ export function App() {
       <ChapterIndex index={activeChapter} />
       <GuideLine activeChapter={activeChapter} />
       <ProfileBadge hidden={navigationOpen} />
-      {framesReady && !backgroundReady && <CinematicLoadingNotice progress={backgroundProgress} />}
+      {framesReady && !backgroundReady && <CinematicLoadingNotice />}
       <main>
         <AboutSection />
         <ExperienceSection />
