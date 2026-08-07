@@ -164,6 +164,9 @@ const CASE_VISUAL_SUMMARIES = {
  */
 function useScrollSnap(pageCount, refs) {
   useEffect(() => {
+    // On phones chapters follow their content height. Let native document
+    // scrolling stay free so snapping cannot trap long content or page six.
+    if (window.matchMedia("(max-width: 760px)").matches) return undefined;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
 
     const pageHeight = () => Math.max(1, window.innerHeight);
@@ -658,17 +661,20 @@ function Navigation({ activeChapter, onNavigate }) {
       </button>
       <div className="nav-stack" id="nav-stack">
         {chapters.map((chapter, index) => (
-          <button
+          <a
             key={chapter.id}
-            type="button"
+            href={`#${chapter.id}`}
             className={activeChapter === index ? "nav-item is-active" : "nav-item"}
-            onClick={() => handleNavigate(chapter.id)}
+            onClick={(event) => {
+              event.preventDefault();
+              handleNavigate(chapter.id);
+            }}
           >
             <span className="nav-rail" aria-hidden="true" />
             <span className="nav-index">{String(index + 1).padStart(2, "0")}</span>
             <span className="nav-label"><strong>{chapter.label}</strong><small>{chapter.zh}</small></span>
             <span className="nav-state">{activeChapter === index ? "NOW" : "GO"}</span>
-          </button>
+          </a>
         ))}
       </div>
       <div className="nav-footer"><span>NARRATIVE THREAD</span><small>06 SCENES</small></div>
@@ -1779,7 +1785,20 @@ export function App() {
     let frame = 0;
     const updateChapter = () => {
       frame = 0;
-      setActiveChapter(clamp(Math.round(window.scrollY / Math.max(1, window.innerHeight)), 0, 5));
+      const chapterNodes = [...document.querySelectorAll(".chapter[data-chapter]")];
+      if (!chapterNodes.length) return;
+
+      // Mobile chapters can be taller than one viewport. Derive the active
+      // scene from what is nearest the visual center, not a 100vh grid.
+      const viewportCenter = window.innerHeight / 2;
+      const current = chapterNodes.reduce((closest, node) => {
+        const rect = node.getBoundingClientRect();
+        const distance = Math.abs(rect.top + rect.height / 2 - viewportCenter);
+        return distance < closest.distance
+          ? { index: Number(node.dataset.chapter), distance }
+          : closest;
+      }, { index: 0, distance: Number.POSITIVE_INFINITY });
+      setActiveChapter(clamp(current.index, 0, 5));
     };
     const onScroll = () => {
       if (frame) return;
@@ -1899,7 +1918,9 @@ export function App() {
 
   // Hard-stop scroll at the final chapter — no empty tail beyond page 06.
   useEffect(() => {
+    const isPhoneLayout = () => window.matchMedia("(max-width: 760px)").matches;
     const lockTail = () => {
+      if (isPhoneLayout()) return;
       const pageH = Math.max(1, window.innerHeight);
       const maxScroll = pageH * 5;
       if (window.scrollY > maxScroll) {
@@ -1918,9 +1939,10 @@ export function App() {
   const navigate = (id) => {
     const target = document.getElementById(id);
     if (!target) return;
+    const isPhoneLayout = window.matchMedia("(max-width: 760px)").matches;
     const pageH = Math.max(1, window.innerHeight);
     const maxScroll = pageH * 5;
-    const top = Math.min(target.offsetTop, maxScroll);
+    const top = isPhoneLayout ? target.offsetTop : Math.min(target.offsetTop, maxScroll);
     // Suppress scroll-snap briefly so it doesn't fight the smooth programmatic scroll.
     snapControlRef.current.navigateProgrammatic = true;
     window.clearTimeout(navigateTimerRef.current);

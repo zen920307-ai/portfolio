@@ -19,3 +19,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Project covers use three equal-width cards with a fixed media stage: keep the complete cover visible and fill unused space with a blurred bleed of the same image, never black letterboxing.
 - Project case studies must feel intentionally different by product type (mobile narrative, B-end dashboard logic, website editorial flow) and use real icon-library visuals to reduce text density.
 - Local-only Vibe Coding projects use an in-system glass modal for contact and experience guidance; never use the browser's native alert dialog.
+- On phones, use one native document scroll flow with content-led chapter heights; do not combine fixed six-viewport shell sizing, per-chapter scroll containers, and scroll clamps. Hide the top-right contact badge whenever any modal or lightbox is open so every close control remains unobstructed.

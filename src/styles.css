@@ -3978,3 +3978,178 @@ main { position: relative; }
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
+
+/* ============================================================
+   Mobile scroll architecture
+   One native document scroller only. The desktop six-frame film remains
+   intentionally hard-locked above; phones use content-led chapters so no
+   section can be clipped by a fixed viewport or a nested scroll container.
+   ============================================================ */
+@media (max-width: 760px) {
+  html { scroll-padding-top: 72px; }
+
+  .portfolio-shell,
+  .portfolio-shell > main {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .chapter,
+  .chapter-experience,
+  .chapter-system,
+  .chapter-projects,
+  .chapter-graphic,
+  .chapter-vibe {
+    display: block;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible !important;
+    padding: 82px 16px 56px;
+  }
+
+  .chapter + .chapter { padding-top: 72px; }
+  .chapter::after { display: none; }
+  .narrative-thread,
+  .chapter-index,
+  .scene-guide { display: none; }
+
+  /* Every desktop-positioned stage participates in normal document flow. */
+  .chapter .scene-panel,
+  .chapter .system-screen-ui,
+  .chapter .chapter-copy,
+  .experience-panel,
+  .projects-panel,
+  .graphic-panel,
+  .vibe-showcase,
+  .system-screen-ui,
+  .chapter-vibe .vibe-showcase {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  .chapter-copy,
+  .chapter-about .chapter-copy {
+    width: 100% !important;
+    max-width: none;
+  }
+
+  .chapter-about .chapter-copy,
+  .experience-panel,
+  .projects-panel,
+  .graphic-panel,
+  .system-screen-ui,
+  .vibe-showcase { padding-bottom: 12px; }
+
+  .system-screen-ui { padding: 12px; }
+  .system-screen-ui__body { min-height: 0; }
+  .system-strip-stage { min-height: 180px; }
+
+  .project-cover-grid {
+    height: auto !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+  }
+  .project-cover-card,
+  .project-cover-card:first-child,
+  .project-cover-card--2,
+  .project-cover-card--3 {
+    height: auto !important;
+    min-height: 0;
+    aspect-ratio: auto;
+  }
+  .project-cover-card--1 .project-cover-card__media {
+    height: auto;
+    aspect-ratio: 1586 / 992;
+  }
+  .project-cover-card--2,
+  .project-cover-card--3 { aspect-ratio: 1586 / 992; }
+
+  .graphic-panel { grid-template-columns: 1fr; gap: 18px; }
+  .graphic-drift,
+  .graphic-loop { height: min(72svh, 520px); min-height: 300px; }
+
+  .chapter-vibe .vibe-showcase { padding-bottom: 0; }
+  .vibe-card-row { grid-template-columns: 1fr 1fr; }
+  .chapter-vibe .final-credit {
+    position: relative !important;
+    inset: auto !important;
+    display: flex;
+    margin: 24px 0 0;
+    padding: 14px 0 0;
+  }
+
+  /* Mobile navigation is a real tappable menu, not an off-screen rail. */
+  .chapter-nav { z-index: 40; }
+  .chapter-nav .nav-stack {
+    /* Earlier desktop rail rules pin this element with both top and bottom.
+       Reset the bottom anchor here so the expanded menu can actually sit
+       below the hamburger instead of being stretched above the viewport. */
+    bottom: auto;
+    max-height: calc(100dvh - 76px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chapter-nav .nav-item { touch-action: manipulation; }
+
+  /* The contact card never competes with an overlay close affordance. */
+  .identity-badge { z-index: 24; }
+  body.modal-open .identity-badge,
+  body:has(.info-overlay, .profile-overlay, .career-overlay, .detail-overlay, .system-preview-lightbox, .project-image-lightbox, .work-lightbox, .wechat-qr-overlay, .local-app-overlay) .identity-badge {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* Every overlay owns its own vertical scroll; the page underneath remains
+     locked, and no dialog is taller than the usable mobile viewport. */
+  .info-overlay,
+  .profile-overlay,
+  .career-overlay,
+  .detail-overlay,
+  .system-preview-lightbox,
+  .project-image-lightbox,
+  .work-lightbox,
+  .wechat-qr-overlay,
+  .local-app-overlay {
+    max-height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .detail-overlay--case,
+  .detail-overlay--mobile,
+  .detail-overlay--admin,
+  .detail-overlay--website {
+    display: block;
+    overflow-y: auto;
+  }
+  .detail-overlay--case .detail-gallery { height: 30svh; }
+  .detail-overlay--case .case-stage { overflow: visible; padding: 76px 18px 48px; }
+  .detail-close,
+  .info-overlay__close,
+  .system-preview-lightbox > button,
+  .project-image-lightbox > button,
+  .work-lightbox > button,
+  .wechat-qr-close { z-index: 6; }
+}
+
+@media (max-width: 480px) {
+  .chapter,
+  .chapter-experience,
+  .chapter-system,
+  .chapter-projects,
+  .chapter-graphic,
+  .chapter-vibe { padding: 74px 12px 48px; }
+
+  .vibe-card-row { grid-template-columns: 1fr; }
+  .graphic-drift,
+  .graphic-loop { height: min(66svh, 440px); min-height: 270px; }
+}
