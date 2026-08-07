@@ -168,13 +168,13 @@ function LoadingScreen({ progress, ready, error, onRetry }) {
       <div className="lab-loader__backdrop" />
       <div className="lab-loader__grain" />
       <div className="lab-loader__mark" aria-hidden="true"><i /><i /><i /></div>
-      <div className="lab-loader__falling-ui" aria-hidden="true">
-        <i style={{ "--drop-x": "-168px", "--drop-side": "-34vw", "--drop-delay": "-.6s" }}><Layers3 /></i>
-        <i style={{ "--drop-x": "-54px", "--drop-side": "-18vw", "--drop-delay": "-2.2s" }}><MousePointerClick /></i>
-        <i style={{ "--drop-x": "68px", "--drop-side": "20vw", "--drop-delay": "-3.7s" }}><AppWindow /></i>
-        <i style={{ "--drop-x": "170px", "--drop-side": "35vw", "--drop-delay": "-5.1s" }}><Sparkles /></i>
-      </div>
       <div className="lab-loader__content">
+        <div className="lab-loader__falling-ui" aria-hidden="true">
+          <i style={{ "--drop-x": "-178px", "--rebound": "-82px", "--drop-delay": "-.8s", "--drop-duration": "5.9s" }}><Layers3 /></i>
+          <i style={{ "--drop-x": "-58px", "--rebound": "-54px", "--drop-delay": "-3.1s", "--drop-duration": "6.8s" }}><MousePointerClick /></i>
+          <i style={{ "--drop-x": "62px", "--rebound": "-108px", "--drop-delay": "-1.9s", "--drop-duration": "6.3s" }}><AppWindow /></i>
+          <i style={{ "--drop-x": "180px", "--rebound": "-66px", "--drop-delay": "-4.7s", "--drop-duration": "7.2s" }}><Sparkles /></i>
+        </div>
         <p className="lab-loader__eyebrow">TANG QIDONG / DESIGN LAB</p>
         <h1>开场已就位，<br />马上进入设计现场。</h1>
         <div className="lab-loader__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}>
