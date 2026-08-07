@@ -13,22 +13,18 @@ import DriftWall from "./components/DriftWall.jsx";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
-const FRAME_CACHE_NAME = "tang-portfolio-frames-v1";
+const FRAME_CACHE_NAME = "tang-portfolio-frames-v2";
 const framePath = (segment, frameIndex) => (
   `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
 );
-// Enter after only the frames that make the first view feel alive. The other
-// 1,193 frames are requested naturally as visitors move through the story;
-// blocking first paint on the entire film made cold starts unnecessarily slow.
-const CRITICAL_FRAME_URLS = [
-  framePath(0, 0),
-  framePath(0, 1),
-  framePath(0, 2),
-  framePath(1, 0),
-  framePath(2, 0),
-  framePath(3, 0),
-  framePath(4, 0),
-];
+// The opening scene is primed as one contiguous sequence. This keeps the
+// first movement fluid without making visitors wait for the whole 1,200-frame
+// archive. Every URL still points at the original 1920 x 1080 source frame.
+const OPENING_FRAME_COUNT = 48;
+const CRITICAL_FRAME_URLS = Array.from(
+  { length: OPENING_FRAME_COUNT },
+  (_, frameIndex) => framePath(0, frameIndex),
+);
 let criticalFramePromise = null;
 const backgroundFramePromises = new Map();
 const framePreloadListeners = new Set();
@@ -66,7 +62,7 @@ async function cacheCriticalFrames() {
     };
 
     emitFrameProgress(0);
-    await Promise.all(Array.from({ length: 3 }, worker));
+    await Promise.all(Array.from({ length: 6 }, worker));
     emitFrameProgress(100);
   })().catch((error) => {
     criticalFramePromise = null;
@@ -106,10 +102,9 @@ function useFrameBootloader() {
     setError(false);
     cacheCriticalFrames().then(() => {
       setReady(true);
-      // Cache only the opening window of the first scene here. Further
-      // windows are scheduled by the active chapter below, so a first visit
-      // never turns into a hidden 1,200-image network waterfall.
-      window.setTimeout(() => warmFrameWindow(0, 0, 96), 250);
+      // Finish the rest of scene one immediately after entry. Subsequent
+      // scenes stay demand-led, avoiding a hidden 1,200-image waterfall.
+      window.setTimeout(() => warmFrameWindow(0, OPENING_FRAME_COUNT, 240 - OPENING_FRAME_COUNT), 0);
     }).catch(() => setError(true));
   }, []);
 
@@ -464,7 +459,7 @@ function CinematicBackdrop() {
     const context = canvas?.getContext("2d", { alpha: true, desynchronized: true });
     let lastSegment = 0;
     let lastFrameIndex = 0;
-    let warmController = new AbortController();
+    const warmController = new AbortController();
     let targetLoadInFlight = false;
     let requestedTarget = { segment: 0, frameIndex: 0 };
 
@@ -490,7 +485,9 @@ function CinematicBackdrop() {
     };
 
     const trimCache = () => {
-      while (bitmapCacheRef.current.size > 18) {
+      const deviceMemory = navigator.deviceMemory || 4;
+      const maxBitmaps = deviceMemory <= 4 ? 16 : 28;
+      while (bitmapCacheRef.current.size > maxBitmaps) {
         const oldestKey = bitmapCacheRef.current.keys().next().value;
         if (oldestKey === targetKeyRef.current) {
           const bitmap = bitmapCacheRef.current.get(oldestKey);
@@ -568,15 +565,17 @@ function CinematicBackdrop() {
     const warmFrame = (segment, frameIndex) => {
       if (segment < 0 || segment > 4) return;
       const bounded = clamp(frameIndex, 0, FRAME_COUNTS[segment] - 1);
-      if (pendingFramesRef.current.size >= 4) return;
+      if (pendingFramesRef.current.size >= 8) return;
       loadBitmap(segment, bounded, warmController.signal);
     };
 
     const warmAround = (segment, frameIndex, direction) => {
-      for (let offset = 1; offset <= 6; offset += 1) warmFrame(segment, frameIndex + offset * direction);
-      for (let offset = 1; offset <= 2; offset += 1) warmFrame(segment, frameIndex - offset * direction);
-      if (frameIndex > FRAME_COUNTS[segment] - 20) {
-        for (let offset = 0; offset < 4; offset += 1) warmFrame(segment + 1, offset);
+      // Do not cancel this queue on every scroll tick: that was starving the
+      // decoder exactly when a visitor started moving through the page.
+      for (let offset = 1; offset <= 16; offset += 1) warmFrame(segment, frameIndex + offset * direction);
+      for (let offset = 1; offset <= 5; offset += 1) warmFrame(segment, frameIndex - offset * direction);
+      if (frameIndex > FRAME_COUNTS[segment] - 28) {
+        for (let offset = 0; offset < 12; offset += 1) warmFrame(segment + 1, offset);
       }
     };
 
@@ -607,8 +606,6 @@ function CinematicBackdrop() {
       const key = `${segment}-${frameIndex}`;
       targetKeyRef.current = key;
       requestedTarget = { segment, frameIndex };
-      warmController.abort();
-      warmController = new AbortController();
       resolveLatestTarget();
       lastSegment = segment;
       lastFrameIndex = frameIndex;
