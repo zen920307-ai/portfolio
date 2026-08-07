@@ -643,6 +643,7 @@ function Navigation({ activeChapter, onNavigate, onMenuChange }) {
   const [open, setOpen] = useState(false);
 
   const handleNavigate = (id) => {
+    window.dispatchEvent(new Event("portfolio:navigate"));
     onNavigate(id);
     setOpen(false);
     onMenuChange?.(false);
@@ -668,6 +669,7 @@ function Navigation({ activeChapter, onNavigate, onMenuChange }) {
         <i /><i /><i />
       </button>
       <div className="nav-stack" id="nav-stack">
+        <p className="nav-mobile-notice">请用 PC 端浏览查看完整效果</p>
         {chapters.map((chapter, index) => (
           <a
             key={chapter.id}
@@ -688,6 +690,13 @@ function Navigation({ activeChapter, onNavigate, onMenuChange }) {
       <div className="nav-footer"><span>NARRATIVE THREAD</span><small>06 SCENES</small></div>
     </nav>
   );
+}
+
+function useCloseOnPortfolioNavigate(onClose) {
+  useEffect(() => {
+    window.addEventListener("portfolio:navigate", onClose);
+    return () => window.removeEventListener("portfolio:navigate", onClose);
+  }, [onClose]);
 }
 
 function ChapterIndex({ index }) {
@@ -722,6 +731,7 @@ function GuideLine({ activeChapter }) {
 
 function InfoOverlay({ eyebrow, title, onClose, children, className = "" }) {
   const overlayRef = useRef(null);
+  useCloseOnPortfolioNavigate(onClose);
 
   useLayoutEffect(() => {
     document.body.classList.add("modal-open");
@@ -757,6 +767,7 @@ function ZoomableImage({ src, alt, className = "" }) {
   const yRef = useRef(0);
   const draggingRef = useRef(false);
   const lastRef = useRef({ x: 0, y: 0 });
+  const pinchRef = useRef({ distance: 0, scale: 1 });
 
   const apply = useCallback(() => {
     const el = imgRef.current;
@@ -793,6 +804,34 @@ function ZoomableImage({ src, alt, className = "" }) {
     }
   }, []);
 
+  const getTouchDistance = (touches) => Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY,
+  );
+
+  const onTouchStart = useCallback((event) => {
+    if (event.touches.length !== 2) return;
+    event.preventDefault();
+    pinchRef.current = {
+      distance: getTouchDistance(event.touches),
+      scale: scaleRef.current,
+    };
+  }, []);
+
+  const onTouchMove = useCallback((event) => {
+    if (event.touches.length !== 2 || !pinchRef.current.distance) return;
+    event.preventDefault();
+    scaleRef.current = Math.min(
+      8,
+      Math.max(1, pinchRef.current.scale * (getTouchDistance(event.touches) / pinchRef.current.distance)),
+    );
+    apply();
+  }, [apply]);
+
+  const onTouchEnd = useCallback((event) => {
+    if (event.touches.length < 2) pinchRef.current.distance = 0;
+  }, []);
+
   const reset = useCallback(() => {
     scaleRef.current = 1; xRef.current = 0; yRef.current = 0; apply();
   }, [apply]);
@@ -810,6 +849,10 @@ function ZoomableImage({ src, alt, className = "" }) {
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
       onDoubleClick={reset}
       draggable="false"
       style={{ cursor: scaleRef.current > 1 ? "grab" : "zoom-in" }}
@@ -840,6 +883,7 @@ function LineIcon({ name, className = "" }) {
 
 function ProfileOverlay({ onClose }) {
   const rootRef = useRef(null);
+  useCloseOnPortfolioNavigate(onClose);
 
   useLayoutEffect(() => {
     document.body.classList.add("modal-open");
@@ -984,6 +1028,7 @@ function AboutSection() {
 
 function CareerStageDetail({ onClose }) {
   const rootRef = useRef(null);
+  useCloseOnPortfolioNavigate(onClose);
 
   useLayoutEffect(() => {
     document.body.classList.add("modal-open");
@@ -1166,6 +1211,11 @@ function SystemSection() {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState(null);
   const module = systemModules[active];
+  useEffect(() => {
+    const close = () => { setOpen(false); setPreview(null); };
+    window.addEventListener("portfolio:navigate", close);
+    return () => window.removeEventListener("portfolio:navigate", close);
+  }, []);
 
   return (
     <section className="chapter chapter-system" id="wanying" data-chapter="2">
@@ -1286,6 +1336,7 @@ function CapabilityRadar({ data }) {
 function ProjectDetail({ project, onClose }) {
   const detailRef = useRef(null);
   const [preview, setPreview] = useState(null);
+  useCloseOnPortfolioNavigate(onClose);
   useEffect(() => {
     const closeOnEscape = (event) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", closeOnEscape);
@@ -1503,6 +1554,11 @@ function ProjectDetail({ project, onClose }) {
 
 function ProjectsSection() {
   const [detail, setDetail] = useState(null);
+  useEffect(() => {
+    const close = () => setDetail(null);
+    window.addEventListener("portfolio:navigate", close);
+    return () => window.removeEventListener("portfolio:navigate", close);
+  }, []);
   return (
     <section className="chapter chapter-projects" id="projects" data-chapter="3">
       <div className="projects-panel scene-panel" data-narrative-anchor="projects" data-thread-x="0.92" data-thread-y="0.12">
@@ -1581,6 +1637,11 @@ function GraphicSection() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [items, setItems] = useState(works);
   const [activeWork, setActiveWork] = useState(null);
+  useEffect(() => {
+    const close = () => { setSelected(null); setArchiveOpen(false); };
+    window.addEventListener("portfolio:navigate", close);
+    return () => window.removeEventListener("portfolio:navigate", close);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -1666,6 +1727,11 @@ function VibeSection() {
   const [qrOpen, setQrOpen] = useState(false);
   const [localNotice, setLocalNotice] = useState(null);
   const detailRef = useRef(null);
+  useEffect(() => {
+    const close = () => { setDetailOpen(false); setQrOpen(false); setLocalNotice(null); };
+    window.addEventListener("portfolio:navigate", close);
+    return () => window.removeEventListener("portfolio:navigate", close);
+  }, []);
 
   useLayoutEffect(() => {
     if (!detailOpen || !detailRef.current) return undefined;

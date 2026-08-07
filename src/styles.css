@@ -4416,3 +4416,88 @@ main { position: relative; }
   .chapter-nav.is-open .nav-state { color: rgba(255,255,255,.28); }
   .chapter-nav.is-open .nav-burger { top: 18px; left: 18px; }
 }
+
+/* Mobile overlay and visual-density finishing pass. */
+@media (max-width: 760px) {
+  .chapter-nav { z-index: 230; }
+  .chapter-nav.is-open { z-index: 240; }
+  .nav-burger::after {
+    right: auto;
+    bottom: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .nav-mobile-notice {
+    position: absolute;
+    top: max(24px, env(safe-area-inset-top));
+    right: 24px;
+    left: 78px;
+    margin: 0;
+    color: rgba(255,255,255,.5);
+    font: 700 8px/1.4 ui-monospace, Consolas, monospace;
+    letter-spacing: .08em;
+    text-align: right;
+  }
+  .chapter-nav:not(.is-open) .nav-mobile-notice { display: none; }
+
+  /* Every close action remains in the same reachable corner while dialog
+     content scrolls underneath it. */
+  .detail-close,
+  .info-overlay__close,
+  .system-preview-lightbox > button,
+  .project-image-lightbox > button,
+  .work-lightbox > button,
+  .wechat-qr-close,
+  .local-app-modal__close {
+    position: fixed !important;
+    top: max(14px, env(safe-area-inset-top)) !important;
+    right: max(16px, env(safe-area-inset-right)) !important;
+    z-index: 220 !important;
+    min-width: 44px;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,.22) !important;
+    border-radius: 50%;
+    background: rgba(8,9,9,.8) !important;
+    color: #fff;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  /* The case media stays in view as the written case scrolls. */
+  .detail-overlay--case .detail-gallery {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 32svh;
+  }
+  .detail-overlay--case .case-stage { padding-top: 64px; }
+
+  /* Let the film frames breathe through mobile cards instead of blacking out
+     every surface. */
+  .experience-card,
+  .project-cover-card,
+  .vibe-preview-card,
+  .system-screen-ui,
+  .system-module-console,
+  .system-strip-stage,
+  .graphic-drift {
+    background: rgba(12,12,12,.22) !important;
+    backdrop-filter: blur(22px) saturate(1.12);
+    -webkit-backdrop-filter: blur(22px) saturate(1.12);
+  }
+  .experience-card,
+  .project-cover-card,
+  .vibe-preview-card { box-shadow: 0 14px 42px rgba(0,0,0,.18); }
+  .project-cover-card__copy { background: rgba(8,8,8,.28); }
+
+  /* Three complete columns, with no side crop on the graphic wall. */
+  .graphic-drift .drift-wall { gap: 7px; justify-content: stretch; --dw-gap: 7px; mask-image: none; -webkit-mask-image: none; }
+  .graphic-drift .drift-wall__col {
+    width: calc((100% - 14px) / 3) !important;
+    flex-basis: calc((100% - 14px) / 3) !important;
+  }
+  .graphic-drift .drift-wall__tile img { width: 100%; object-fit: contain; }
+}
