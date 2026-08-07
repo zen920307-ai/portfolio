@@ -23,6 +23,7 @@ const resetRope = (paths, x = 0, y = 0) => {
 export function ProfileBadge({ hidden = false }) {
   const [open, setOpen] = useState(false);
   const [flipped, setFlipped] = useState(false);
+  const [dialogPresent, setDialogPresent] = useState(false);
   const rootRef = useRef(null);
   const dropRef = useRef(null);
   const cardRef = useRef(null);
@@ -39,6 +40,17 @@ export function ProfileBadge({ hidden = false }) {
     { node: ropeRightShadowRef.current, side: "right" },
     { node: ropeRightFaceRef.current, side: "right" },
   ], []);
+
+  // Several overlays are mounted by independent chapters. Observe the real DOM
+  // so the floating contact control is always removed before any close button
+  // can be obstructed, including overlays that do not use the shared helper.
+  useEffect(() => {
+    const sync = () => setDialogPresent(Boolean(document.querySelector('[role="dialog"]')));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["role"] });
+    return () => observer.disconnect();
+  }, []);
 
   useLayoutEffect(() => {
     const intro = gsap.fromTo(rootRef.current, { y: -64, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: .55, delay: .2, ease: "back.out(1.8)" });
@@ -182,7 +194,7 @@ export function ProfileBadge({ hidden = false }) {
   };
 
   return (
-    <div className={`identity-badge ${open ? "is-open" : ""}${hidden ? " is-hidden" : ""}`} ref={rootRef} aria-label="唐启东身份工牌">
+    <div className={`identity-badge ${open ? "is-open" : ""}${hidden || dialogPresent ? " is-hidden" : ""}`} ref={rootRef} aria-label="唐启东身份工牌">
       <BorderGlow
         className="identity-badge__trigger-shell"
         edgeSensitivity={18}

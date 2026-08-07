@@ -4367,3 +4367,52 @@ main { position: relative; }
   .project-cover-card, .project-cover-card:first-child, .project-cover-card--2, .project-cover-card--3 { height: 280px !important; min-height: 280px; }
   .graphic-drift, .graphic-loop { height: min(76svh, 600px); min-height: 440px; }
 }
+
+/* Mobile continuity and navigation treatment. */
+@media (max-width: 760px) {
+  /* Desktop scene choreography hides the upcoming chapter until its center
+     crosses the viewport. On a continuous mobile document that creates long
+     empty stretches, so every chapter remains immediately readable. */
+  .chapter .motion-item {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  /* A deliberately mobile-only navigation language: quiet, circular trigger
+     and high-contrast editorial index, without the desktop accent rail. */
+  .nav-burger {
+    width: 50px;
+    height: 50px;
+    padding: 13px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.24) !important;
+    background: rgba(7,8,8,.88);
+    box-shadow: 0 12px 34px rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.08);
+  }
+  .nav-burger::after {
+    content: "MENU";
+    position: absolute;
+    right: -30px;
+    bottom: -10px;
+    color: rgba(255,255,255,.5);
+    font: 700 6px/1 ui-monospace, Consolas, monospace;
+    letter-spacing: .14em;
+  }
+  .nav-burger i { width: 22px; height: 1px; background: #fff; }
+  .chapter-nav.is-open .nav-stack { background: radial-gradient(circle at 78% 12%, rgba(245,207,0,.08), transparent 25%), rgba(5,6,6,.99); }
+  .chapter-nav.is-open .nav-item {
+    grid-template-columns: 42px 1fr auto;
+    border-bottom: 1px solid rgba(255,255,255,.08) !important;
+    border-radius: 0;
+    background: transparent;
+  }
+  .chapter-nav.is-open .nav-item.is-active { background: rgba(255,255,255,.055); }
+  .chapter-nav.is-open .nav-item.is-active::before { display: none; }
+  .chapter-nav.is-open .nav-index { color: rgba(255,255,255,.32); font-size: 18px; font-weight: 300; }
+  .chapter-nav.is-open .nav-item.is-active .nav-index { color: var(--accent); }
+  .chapter-nav.is-open .nav-label strong { letter-spacing: .12em; }
+  .chapter-nav.is-open .nav-state { color: rgba(255,255,255,.28); }
+  .chapter-nav.is-open .nav-burger { top: 18px; left: 18px; }
+}
