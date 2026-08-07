@@ -13,36 +13,32 @@ import DriftWall from "./components/DriftWall.jsx";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
-const FRAME_CACHE_NAME = "tang-portfolio-frames-v1";
+const FRAME_CACHE_NAME = "tang-portfolio-frames-v4";
+const FRAME_MANIFEST_PATH = "/__tang-portfolio-frames-v4";
 const framePath = (segment, frameIndex) => (
-  `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
+  `/frames-lite/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
 );
-// Enter after only the frames that make the first view feel alive. The other
-// 1,193 frames are requested naturally as visitors move through the story;
-// blocking first paint on the entire film made cold starts unnecessarily slow.
-const CRITICAL_FRAME_URLS = [
-  framePath(0, 0),
-  framePath(0, 1),
-  framePath(0, 2),
-  framePath(1, 0),
-  framePath(2, 0),
-  framePath(3, 0),
-  framePath(4, 0),
-];
-let criticalFramePromise = null;
-const backgroundFramePromises = new Map();
+const ALL_FRAME_URLS = FRAME_COUNTS.flatMap((count, segment) => (
+  Array.from({ length: count }, (_, frameIndex) => framePath(segment, frameIndex))
+));
+
+let framePreloadPromise = null;
 const framePreloadListeners = new Set();
 const emitFrameProgress = (value) => framePreloadListeners.forEach((listener) => listener(value));
 
-async function cacheCriticalFrames() {
-  if (criticalFramePromise) return criticalFramePromise;
+async function cacheAllFrames() {
+  if (framePreloadPromise) return framePreloadPromise;
 
-  criticalFramePromise = (async () => {
+  framePreloadPromise = (async () => {
     if (!("caches" in window)) throw new Error("CACHE_UNAVAILABLE");
     const cache = await caches.open(FRAME_CACHE_NAME);
+    if (await cache.match(FRAME_MANIFEST_PATH)) {
+      emitFrameProgress(100);
+      return;
+    }
     let completed = 0;
-    const update = () => emitFrameProgress(Math.round((completed / CRITICAL_FRAME_URLS.length) * 100));
-    const queue = [...CRITICAL_FRAME_URLS];
+    const update = () => emitFrameProgress(Math.round((completed / ALL_FRAME_URLS.length) * 100));
+    const queue = [...ALL_FRAME_URLS];
     const worker = async () => {
       while (queue.length) {
         const url = queue.shift();
@@ -66,36 +62,15 @@ async function cacheCriticalFrames() {
     };
 
     emitFrameProgress(0);
-    await Promise.all(Array.from({ length: 3 }, worker));
+    await Promise.all(Array.from({ length: 6 }, worker));
+    await cache.put(FRAME_MANIFEST_PATH, new Response("ready", { headers: { "content-type": "text/plain" } }));
     emitFrameProgress(100);
   })().catch((error) => {
-    criticalFramePromise = null;
+    framePreloadPromise = null;
     throw error;
   });
 
-  return criticalFramePromise;
-}
-
-function warmFrameWindow(segment, start = 0, count = 96) {
-  if (!("caches" in window) || segment < 0 || segment >= FRAME_COUNTS.length) return Promise.resolve();
-  const end = Math.min(FRAME_COUNTS[segment], start + count);
-  const urls = Array.from({ length: Math.max(0, end - start) }, (_, offset) => framePath(segment, start + offset));
-  const queued = urls.filter((url) => !backgroundFramePromises.has(url));
-  const existing = urls.filter((url) => backgroundFramePromises.has(url)).map((url) => backgroundFramePromises.get(url));
-  const worker = async () => {
-    const cache = await caches.open(FRAME_CACHE_NAME);
-    while (queued.length) {
-      const url = queued.shift();
-      const task = (async () => {
-        if (await cache.match(url)) return;
-        const response = await fetch(url, { cache: "force-cache" });
-        if (response.ok) await cache.put(url, response.clone());
-      })().catch(() => undefined);
-      backgroundFramePromises.set(url, task);
-      await task;
-    }
-  };
-  return Promise.all([...existing, ...Array.from({ length: 4 }, worker)]);
+  return framePreloadPromise;
 }
 
 function useFrameBootloader() {
@@ -104,13 +79,7 @@ function useFrameBootloader() {
   const [error, setError] = useState(false);
   const run = useCallback(() => {
     setError(false);
-    cacheCriticalFrames().then(() => {
-      setReady(true);
-      // Cache only the opening window of the first scene here. Further
-      // windows are scheduled by the active chapter below, so a first visit
-      // never turns into a hidden 1,200-image network waterfall.
-      window.setTimeout(() => warmFrameWindow(0, 0, 96), 250);
-    }).catch(() => setError(true));
+    cacheAllFrames().then(() => setReady(true)).catch(() => setError(true));
   }, []);
 
   useEffect(() => {
@@ -129,9 +98,9 @@ function useFrameBootloader() {
 
 function LoadingScreen({ progress, ready, error, onRetry }) {
   const loadingNotes = [
-    "正在冲洗开场三秒，故事马上开机。",
-    "把重资源留到后台，先让你进来逛。",
-    "灵感已通电，请系好创意安全带。",
+    "正在冲洗整卷影像，马上开场。",
+    "完整画面正在就位，进入后可连续浏览。",
+    "导演说：这一帧，值得等一下。",
   ];
   const [noteIndex, setNoteIndex] = useState(0);
 
@@ -148,17 +117,17 @@ function LoadingScreen({ progress, ready, error, onRetry }) {
       <div className="lab-loader__mark" aria-hidden="true"><i /><i /><i /></div>
       <div className="lab-loader__content">
         <p className="lab-loader__eyebrow">TANG QIDONG / DESIGN LAB</p>
-        <h1>开场已就位，<br />马上进入设计现场。</h1>
+        <h1>整卷画面正在就位，<br />很快进入设计现场。</h1>
         <div className="lab-loader__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}>
           <span style={{ "--loader-progress": `${progress}%` }} />
         </div>
         <div className="lab-loader__status">
           <span className="lab-loader__note-cycle">{error ? "网络有一点迟疑，点击后继续前进。" : loadingNotes[noteIndex]}</span>
-          <small>{error ? <button type="button" onClick={onRetry}>重新加载</button> : <><b>{String(progress).padStart(3, "0")}%</b> / FIRST VIEW</>}</small>
+          <small>{error ? <button type="button" onClick={onRetry}>重新加载</button> : <><b>{String(progress).padStart(3, "0")}%</b> / 1200 FRAMES READY</>}</small>
         </div>
         <div className="lab-loader__pulse-row" aria-hidden="true"><i /><i /><i /><i /><i /></div>
       </div>
-      <p className="lab-loader__note">FIRST VIEW READY · THE REST ARRIVES AS YOU EXPLORE</p>
+      <p className="lab-loader__note">COMPLETE CINEMATIC SEQUENCE · READY BEFORE ENTRY</p>
     </section>
   );
 }
@@ -490,7 +459,7 @@ function CinematicBackdrop() {
     };
 
     const trimCache = () => {
-      while (bitmapCacheRef.current.size > 18) {
+      while (bitmapCacheRef.current.size > 42) {
         const oldestKey = bitmapCacheRef.current.keys().next().value;
         if (oldestKey === targetKeyRef.current) {
           const bitmap = bitmapCacheRef.current.get(oldestKey);
@@ -568,15 +537,15 @@ function CinematicBackdrop() {
     const warmFrame = (segment, frameIndex) => {
       if (segment < 0 || segment > 4) return;
       const bounded = clamp(frameIndex, 0, FRAME_COUNTS[segment] - 1);
-      if (pendingFramesRef.current.size >= 4) return;
+      if (pendingFramesRef.current.size >= 8) return;
       loadBitmap(segment, bounded, warmController.signal);
     };
 
     const warmAround = (segment, frameIndex, direction) => {
-      for (let offset = 1; offset <= 6; offset += 1) warmFrame(segment, frameIndex + offset * direction);
-      for (let offset = 1; offset <= 2; offset += 1) warmFrame(segment, frameIndex - offset * direction);
-      if (frameIndex > FRAME_COUNTS[segment] - 20) {
-        for (let offset = 0; offset < 4; offset += 1) warmFrame(segment + 1, offset);
+      for (let offset = 1; offset <= 16; offset += 1) warmFrame(segment, frameIndex + offset * direction);
+      for (let offset = 1; offset <= 5; offset += 1) warmFrame(segment, frameIndex - offset * direction);
+      if (frameIndex > FRAME_COUNTS[segment] - 36) {
+        for (let offset = 0; offset < 16; offset += 1) warmFrame(segment + 1, offset);
       }
     };
 
@@ -1915,22 +1884,6 @@ export function App() {
     const leaveTimer = window.setTimeout(() => setLoaderVisible(false), 720);
     return () => window.clearTimeout(leaveTimer);
   }, [framesReady]);
-
-  useEffect(() => {
-    if (!framesReady) return undefined;
-    const scene = Math.min(activeChapter, FRAME_COUNTS.length - 1);
-    const nextScene = Math.min(scene + 1, FRAME_COUNTS.length - 1);
-    // Keep the scene on screen and the one immediately ahead supplied. The
-    // second window waits until the visitor has had time to read, keeping the
-    // first visit light while preventing a fast page transition from stalling.
-    warmFrameWindow(scene, 0, 96);
-    if (nextScene !== scene) warmFrameWindow(nextScene, 0, 96);
-    const expandTimer = window.setTimeout(() => {
-      warmFrameWindow(scene, 96, 144);
-      if (nextScene !== scene) warmFrameWindow(nextScene, 96, 96);
-    }, 1800);
-    return () => window.clearTimeout(expandTimer);
-  }, [activeChapter, framesReady]);
 
   useEffect(() => {
     let frame = 0;

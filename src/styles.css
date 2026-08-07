@@ -52,7 +52,7 @@ html { overscroll-behavior-y: none; }
   overflow: hidden;
 }
 
-/* First-entry gate: only the opening film frames are prepared before entry. */
+/* First-entry gate: the lightweight complete scroll-film is prepared before entry. */
 .lab-loader {
   position: fixed;
   inset: 0;
