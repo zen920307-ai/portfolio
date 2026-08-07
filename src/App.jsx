@@ -12,6 +12,111 @@ import DriftWall from "./components/DriftWall.jsx";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
+const FRAME_CACHE_NAME = "tang-portfolio-frames-v1";
+const FRAME_MANIFEST_PATH = "/__tang-portfolio-frames-v1";
+const framePath = (segment, frameIndex) => (
+  `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
+);
+const ALL_FRAME_URLS = FRAME_COUNTS.flatMap((count, segment) => (
+  Array.from({ length: count }, (_, frameIndex) => framePath(segment, frameIndex))
+));
+
+let framePreloadPromise = null;
+const framePreloadListeners = new Set();
+const emitFrameProgress = (value) => framePreloadListeners.forEach((listener) => listener(value));
+
+async function cacheAllFrames() {
+  if (framePreloadPromise) return framePreloadPromise;
+
+  framePreloadPromise = (async () => {
+    if (!("caches" in window)) throw new Error("CACHE_UNAVAILABLE");
+    const cache = await caches.open(FRAME_CACHE_NAME);
+    if (await cache.match(FRAME_MANIFEST_PATH)) {
+      emitFrameProgress(100);
+      return;
+    }
+
+    let completed = 0;
+    const update = () => emitFrameProgress(Math.round((completed / ALL_FRAME_URLS.length) * 100));
+    const queue = [...ALL_FRAME_URLS];
+    const worker = async () => {
+      while (queue.length) {
+        const url = queue.shift();
+        const existing = await cache.match(url);
+        if (!existing) {
+          let response;
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+              response = await fetch(url, { cache: "force-cache" });
+              if (!response.ok) throw new Error(`FRAME_${response.status}`);
+              await cache.put(url, response.clone());
+              break;
+            } catch (error) {
+              if (attempt === 2) throw error;
+            }
+          }
+        }
+        completed += 1;
+        update();
+      }
+    };
+
+    emitFrameProgress(0);
+    await Promise.all(Array.from({ length: 8 }, worker));
+    await cache.put(FRAME_MANIFEST_PATH, new Response("ready", { headers: { "content-type": "text/plain" } }));
+    emitFrameProgress(100);
+  })().catch((error) => {
+    framePreloadPromise = null;
+    throw error;
+  });
+
+  return framePreloadPromise;
+}
+
+function useFrameBootloader() {
+  const [progress, setProgress] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(false);
+  const run = useCallback(() => {
+    setError(false);
+    cacheAllFrames().then(() => setReady(true)).catch(() => setError(true));
+  }, []);
+
+  useEffect(() => {
+    framePreloadListeners.add(setProgress);
+    run();
+    return () => framePreloadListeners.delete(setProgress);
+  }, [run]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("is-loading", !ready);
+    return () => document.documentElement.classList.remove("is-loading");
+  }, [ready]);
+
+  return { progress, ready, error, retry: run };
+}
+
+function LoadingScreen({ progress, ready, error, onRetry }) {
+  return (
+    <section className={ready ? "lab-loader is-leaving" : "lab-loader"} aria-live="polite" aria-label="正在加载设计实验室">
+      <div className="lab-loader__backdrop" />
+      <div className="lab-loader__grain" />
+      <div className="lab-loader__mark" aria-hidden="true"><i /><i /><i /></div>
+      <div className="lab-loader__content">
+        <p className="lab-loader__eyebrow">TANG QIDONG / DESIGN LAB</p>
+        <h1>正在进入拯的设计实验室，请稍后...</h1>
+        <div className="lab-loader__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}>
+          <span style={{ "--loader-progress": `${progress}%` }} />
+        </div>
+        <div className="lab-loader__status">
+          <span>{error ? "帧序列加载遇到网络波动" : `PREPARING CINEMATIC FRAMES / ${String(progress).padStart(3, "0")}%`}</span>
+          <small>{error ? <button type="button" onClick={onRetry}>重新加载</button> : "1200 FRAMES · LOCAL CACHE ENABLED"}</small>
+        </div>
+      </div>
+      <p className="lab-loader__note">FIRST VISIT / A COMPLETE SCENE BEFORE ENTRY</p>
+    </section>
+  );
+}
 
 const CASE_VISUAL_SUMMARIES = {
   mobile: [
@@ -300,7 +405,7 @@ function CinematicBackdrop() {
   const pendingFramesRef = useRef(new Map());
 
   const frameSource = useCallback((segment, frameIndex) => (
-    `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
+    framePath(segment, frameIndex)
   ), []);
 
   useEffect(() => {
@@ -311,6 +416,25 @@ function CinematicBackdrop() {
     const context = canvas?.getContext("2d", { alpha: true, desynchronized: true });
     let lastSegment = 0;
     let lastFrameIndex = 0;
+    let warmController = new AbortController();
+    let targetLoadInFlight = false;
+    let requestedTarget = { segment: 0, frameIndex: 0 };
+
+    const resizeCanvas = () => {
+      if (!canvas || !context) return;
+      // Source frames are 1920×1080. Render only as many physical pixels as the
+      // viewport can display, rather than compositing a permanent 1920×1080 layer
+      // on every device (especially expensive on remote/mobile GPUs).
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.35);
+      const width = Math.max(1, Math.round(window.innerWidth * dpr));
+      const height = Math.max(1, Math.round(window.innerHeight * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+      }
+    };
 
     const touchBitmap = (key, bitmap) => {
       bitmapCacheRef.current.delete(key);
@@ -318,7 +442,7 @@ function CinematicBackdrop() {
     };
 
     const trimCache = () => {
-      while (bitmapCacheRef.current.size > 24) {
+      while (bitmapCacheRef.current.size > 18) {
         const oldestKey = bitmapCacheRef.current.keys().next().value;
         if (oldestKey === targetKeyRef.current) {
           const bitmap = bitmapCacheRef.current.get(oldestKey);
@@ -342,7 +466,7 @@ function CinematicBackdrop() {
       });
     };
 
-    const loadBitmap = (segment, frameIndex) => {
+    const loadBitmap = (segment, frameIndex, signal = abortController.signal) => {
       const key = `${segment}-${frameIndex}`;
       const cached = bitmapCacheRef.current.get(key);
       if (cached) {
@@ -351,10 +475,15 @@ function CinematicBackdrop() {
       }
       if (pendingFramesRef.current.has(key)) return pendingFramesRef.current.get(key);
 
-      const promise = fetch(frameSource(segment, frameIndex), {
-        cache: "force-cache",
-        signal: abortController.signal,
-      })
+      const source = frameSource(segment, frameIndex);
+      const promise = (async () => {
+        if ("caches" in window) {
+          const cache = await caches.open(FRAME_CACHE_NAME);
+          const cachedResponse = await cache.match(source);
+          if (cachedResponse) return cachedResponse;
+        }
+        return fetch(source, { cache: "force-cache", signal });
+      })()
         .then((response) => {
           if (!response.ok) throw new Error(`Frame ${key} failed: ${response.status}`);
           return response.blob();
@@ -378,7 +507,11 @@ function CinematicBackdrop() {
 
     const paintBitmap = (bitmap, segment, frameIndex) => {
       if (!bitmap || !context || !canvas) return;
-      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const scale = Math.max(canvas.width / bitmap.width, canvas.height / bitmap.height);
+      const width = bitmap.width * scale;
+      const height = bitmap.height * scale;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
       canvas.dataset.segment = String(segment + 1);
       canvas.dataset.frame = String(frameIndex + 1).padStart(4, "0");
       canvas.dataset.source = frameSource(segment, frameIndex);
@@ -387,33 +520,53 @@ function CinematicBackdrop() {
     const warmFrame = (segment, frameIndex) => {
       if (segment < 0 || segment > 4) return;
       const bounded = clamp(frameIndex, 0, FRAME_COUNTS[segment] - 1);
-      if (pendingFramesRef.current.size >= 10) return;
-      loadBitmap(segment, bounded);
+      if (pendingFramesRef.current.size >= 4) return;
+      loadBitmap(segment, bounded, warmController.signal);
+    };
+
+    const warmAround = (segment, frameIndex, direction) => {
+      for (let offset = 1; offset <= 6; offset += 1) warmFrame(segment, frameIndex + offset * direction);
+      for (let offset = 1; offset <= 2; offset += 1) warmFrame(segment, frameIndex - offset * direction);
+      if (frameIndex > FRAME_COUNTS[segment] - 20) {
+        for (let offset = 0; offset < 4; offset += 1) warmFrame(segment + 1, offset);
+      }
+    };
+
+    const resolveLatestTarget = () => {
+      if (targetLoadInFlight) return;
+      const { segment, frameIndex } = requestedTarget;
+      const key = `${segment}-${frameIndex}`;
+      targetLoadInFlight = true;
+      const cached = bitmapCacheRef.current.get(key);
+      if (cached) {
+        touchBitmap(key, cached);
+        paintBitmap(cached, segment, frameIndex);
+        targetLoadInFlight = false;
+      } else {
+        loadBitmap(segment, frameIndex).then((bitmap) => {
+          if (!disposed && targetKeyRef.current === key) paintBitmap(bitmap, segment, frameIndex);
+        }).finally(() => {
+          targetLoadInFlight = false;
+          const latestKey = `${requestedTarget.segment}-${requestedTarget.frameIndex}`;
+          if (!disposed && latestKey !== key) resolveLatestTarget();
+        });
+      }
+      const direction = segment === lastSegment ? Math.sign(frameIndex - lastFrameIndex) || 1 : 1;
+      warmAround(segment, frameIndex, direction);
     };
 
     const requestFrame = (segment, frameIndex) => {
       const key = `${segment}-${frameIndex}`;
       targetKeyRef.current = key;
-      const cached = bitmapCacheRef.current.get(key);
-      if (cached) {
-        touchBitmap(key, cached);
-        paintBitmap(cached, segment, frameIndex);
-      } else {
-        loadBitmap(segment, frameIndex).then((bitmap) => {
-          if (!disposed && targetKeyRef.current === key) paintBitmap(bitmap, segment, frameIndex);
-        });
-      }
-
-      const direction = segment === lastSegment ? Math.sign(frameIndex - lastFrameIndex) || 1 : 1;
-      for (let offset = 1; offset <= 8; offset += 1) warmFrame(segment, frameIndex + offset * direction);
-      for (let offset = 1; offset <= 3; offset += 1) warmFrame(segment, frameIndex - offset * direction);
-      if (frameIndex > FRAME_COUNTS[segment] - 28) {
-        for (let offset = 0; offset < 5; offset += 1) warmFrame(segment + 1, offset);
-      }
+      requestedTarget = { segment, frameIndex };
+      warmController.abort();
+      warmController = new AbortController();
+      resolveLatestTarget();
       lastSegment = segment;
       lastFrameIndex = frameIndex;
     };
 
+    resizeCanvas();
     requestFrame(0, 0);
 
     const syncFrame = () => {
@@ -436,14 +589,16 @@ function CinematicBackdrop() {
       if (!frameRequest) frameRequest = window.requestAnimationFrame(syncFrame);
     };
 
+    const onResize = () => { resizeCanvas(); queueFrame(); };
     syncFrame();
     window.addEventListener("scroll", queueFrame, { passive: true });
-    window.addEventListener("resize", queueFrame);
+    window.addEventListener("resize", onResize);
     return () => {
       disposed = true;
       abortController.abort();
+      warmController.abort();
       window.removeEventListener("scroll", queueFrame);
-      window.removeEventListener("resize", queueFrame);
+      window.removeEventListener("resize", onResize);
       window.cancelAnimationFrame(frameRequest);
       bitmapCacheRef.current.forEach((bitmap) => bitmap?.close?.());
       bitmapCacheRef.current.clear();
@@ -1592,11 +1747,19 @@ function VibeSection() {
 
 export function App() {
   const [activeChapter, setActiveChapter] = useState(0);
+  const { progress: frameProgress, ready: framesReady, error: frameError, retry: retryFrames } = useFrameBootloader();
+  const [loaderVisible, setLoaderVisible] = useState(true);
   const shellRef = useRef(null);
   // Shared flag so programmatic navigation (nav clicks) can suspend scroll snapping.
   const snapControlRef = useRef({ navigateProgrammatic: false });
   const navigateTimerRef = useRef(0);
   useScrollSnap(6, snapControlRef);
+
+  useEffect(() => {
+    if (!framesReady) return undefined;
+    const leaveTimer = window.setTimeout(() => setLoaderVisible(false), 720);
+    return () => window.clearTimeout(leaveTimer);
+  }, [framesReady]);
 
   useEffect(() => {
     let frame = 0;
@@ -1753,7 +1916,8 @@ export function App() {
 
   return (
     <div ref={shellRef} className="portfolio-shell">
-      <CinematicBackdrop />
+      {framesReady && <CinematicBackdrop />}
+      {loaderVisible && <LoadingScreen progress={frameProgress} ready={framesReady} error={frameError} onRetry={retryFrames} />}
       <NarrativeThread activeChapter={activeChapter} />
       <Navigation activeChapter={activeChapter} onNavigate={navigate} />
       <ChapterIndex index={activeChapter} />
