@@ -4153,3 +4153,153 @@ main { position: relative; }
   .graphic-drift,
   .graphic-loop { height: min(66svh, 440px); min-height: 270px; }
 }
+
+/* ============================================================
+   Mobile editorial rebuild — deliberately isolated from the desktop cinema.
+   These rules are last so legacy desktop breakpoints cannot leak into phones.
+   ============================================================ */
+@media (max-width: 760px) {
+  :root { --safe: 20px; }
+  html { scroll-padding-top: 88px; }
+
+  .chapter,
+  .chapter-experience,
+  .chapter-system,
+  .chapter-projects,
+  .chapter-graphic,
+  .chapter-vibe {
+    padding: 88px 20px 32px;
+  }
+  .chapter + .chapter { padding-top: 52px; }
+  .chapter-about { padding-top: 104px; }
+  .chapter-about .chapter-copy { max-width: 34rem; }
+
+  /* Navigation is a fixed, unobstructed sheet instead of a clipped desktop rail. */
+  .chapter-nav {
+    top: 18px;
+    left: 18px;
+    width: 44px;
+    height: 44px;
+    overflow: visible !important;
+    isolation: isolate;
+    z-index: 80;
+  }
+  .chapter-nav .nav-stack {
+    position: fixed;
+    top: 76px;
+    right: 16px;
+    bottom: auto;
+    left: 16px;
+    min-width: 0;
+    max-height: calc(100dvh - 96px);
+    gap: 4px;
+    padding: 10px;
+    overflow-y: auto;
+    border: 1px solid rgba(255,255,255,.18) !important;
+    border-radius: 18px;
+    background: rgba(8,9,9,.97);
+    box-shadow: 0 24px 70px rgba(0,0,0,.72);
+  }
+  .chapter-nav .nav-item {
+    min-height: 52px;
+    grid-template-columns: 28px 1fr auto;
+    padding: 10px 12px;
+    border-radius: 10px;
+    text-decoration: none;
+  }
+  .chapter-nav .nav-label strong { font-size: 12px; }
+  .chapter-nav .nav-label small { display: block; font-size: 10px; }
+  .chapter-nav .nav-state { display: block; color: rgba(255,255,255,.38); font: 700 8px/1 ui-monospace, Consolas, monospace; letter-spacing: .1em; }
+  .chapter-nav .nav-item.is-active .nav-state { color: var(--accent); }
+
+  /* Page 03: constrain the live strips to a deliberate preview window. */
+  .system-screen-ui { padding: 14px; }
+  .system-screen-ui__body {
+    grid-template-columns: 1fr;
+    grid-template-rows: 252px auto;
+    gap: 12px;
+  }
+  .system-strip-stage { height: 252px; min-height: 252px; overflow: hidden; }
+  .vertical-strips { height: 252px; overflow: hidden; }
+  .vertical-strip__track button,
+  .vertical-strip__track img { height: 104px; min-height: 104px; }
+  .system-module-console { min-height: 0; }
+  .system-module-summary { height: auto; min-height: 132px; }
+  .system-screen-tabs { padding-bottom: 2px; }
+
+  /* Page 04: one clear horizontal card rail with a visible next-card cue. */
+  .project-cover-grid {
+    display: flex;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+    gap: 12px;
+    margin-inline: -20px;
+    padding: 4px 20px 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 20px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .project-cover-grid::-webkit-scrollbar { display: none; }
+  .project-cover-card,
+  .project-cover-card:first-child,
+  .project-cover-card--2,
+  .project-cover-card--3 {
+    flex: 0 0 min(84vw, 350px);
+    height: 400px !important;
+    min-height: 400px;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    scroll-snap-align: start;
+  }
+  .project-cover-card__media,
+  .project-cover-card--1 .project-cover-card__media { height: 210px; aspect-ratio: auto; }
+  .projects-panel::after {
+    content: "左右滑动浏览 3 个项目  →";
+    display: block;
+    margin-top: 4px;
+    color: var(--accent);
+    font: 700 9px/1.4 ui-monospace, Consolas, monospace;
+    letter-spacing: .08em;
+  }
+
+  /* Page 05 keeps the visual archive as the main event on a phone. */
+  .graphic-panel { gap: 22px; }
+  .graphic-drift,
+  .graphic-loop { height: min(76svh, 600px); min-height: 430px; }
+
+  /* Compact contact control: both language lines remain readable. */
+  .identity-badge {
+    top: 16px;
+    right: 16px;
+    transform: none;
+    z-index: 70;
+  }
+  .identity-badge__trigger-shell.border-glow-card,
+  .identity-badge__trigger { min-width: 142px; }
+  .identity-badge__trigger { min-height: 46px; gap: 3px; padding: 7px 34px 7px 10px; }
+  .identity-badge__trigger span { font-size: 9px; letter-spacing: .08em; }
+  .identity-badge__trigger em { display: block; font-size: 6px; letter-spacing: .1em; }
+  .identity-badge__trigger::before { right: 10px; width: 23px; height: 23px; }
+  body:has(.chapter-nav.is-open) .identity-badge { visibility: hidden; pointer-events: none; }
+}
+
+@media (max-width: 480px) {
+  .chapter,
+  .chapter-experience,
+  .chapter-system,
+  .chapter-projects,
+  .chapter-graphic,
+  .chapter-vibe { padding-right: 18px; padding-left: 18px; }
+  .chapter-about { padding-top: 96px; }
+  .chapter-nav { left: 14px; }
+  .project-cover-grid { margin-inline: -18px; padding-inline: 18px; }
+  .project-cover-card,
+  .project-cover-card:first-child,
+  .project-cover-card--2,
+  .project-cover-card--3 { flex-basis: 82vw; }
+  .graphic-drift,
+  .graphic-loop { height: min(72svh, 560px); min-height: 400px; }
+}
