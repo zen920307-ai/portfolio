@@ -4861,8 +4861,11 @@ body:has([role="dialog"]) .cinematic-loading-notice { visibility: hidden; }
     right: 16px;
   }
   .identity-badge__trigger-shell.border-glow-card,
-  .identity-badge__trigger { min-width: 176px; }
+  .identity-badge__trigger { min-width: 160px; }
   .identity-badge__trigger { min-height: 62px; }
+  .identity-badge__ticket-kicker { top: 12px; }
+  .identity-badge__trigger span { top: 26px; }
+  .identity-badge__trigger em { top: 43px; }
 
   /* The modal exit shares the same 41px visual center as MENU and the ticket. */
   .overlay-fixed-close,
