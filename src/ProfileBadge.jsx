@@ -209,6 +209,7 @@ export function ProfileBadge({ hidden = false }) {
       >
         <button type="button" className="identity-badge__trigger" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
           <i className="identity-badge__ticket-frame" aria-hidden="true" />
+          <small className="identity-badge__ticket-kicker" aria-hidden="true">ZEN DESIGN LAB / 01</small>
           <span>合作与交流</span>
           <em>CONTACT & COLLABORATION</em>
         </button>

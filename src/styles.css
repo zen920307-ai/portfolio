@@ -3556,6 +3556,26 @@ main { position: relative; }
 .identity-badge.is-open .identity-badge__trigger { transform: none; }
 .identity-badge__trigger-shell.border-glow-card:hover .identity-badge__trigger { background-position: 0 0, 0 0, 0 0, 6px 0; }
 
+/* Ticket face: editorial hierarchy instead of another decorative border. */
+.identity-badge__ticket-frame { display:none; }
+.identity-badge__trigger { min-height:72px; }
+.identity-badge__ticket-kicker { position:absolute; z-index:1; top:9px; left:50%; width:max-content; margin:0; color:rgba(74,54,17,.62); font:800 5.5px/1 ui-monospace, Consolas, monospace; letter-spacing:.25em; white-space:nowrap; transform:translateX(-50%); }
+.identity-badge__trigger span { top:27px; padding:0; letter-spacing:.13em; }
+.identity-badge__trigger span::before,
+.identity-badge__trigger span::after { content:""; position:absolute; top:50%; width:23px; height:1px; background:linear-gradient(90deg, transparent, rgba(86,61,10,.6)); transform:translateY(-50%); }
+.identity-badge__trigger span::before { right:calc(100% + 12px); }
+.identity-badge__trigger span::after { left:calc(100% + 12px); transform:translateY(-50%) scaleX(-1); }
+.identity-badge__trigger em { top:49px; padding:0; letter-spacing:.2em; }
+.identity-badge__trigger-shell.border-glow-card:hover .identity-badge__ticket-kicker { letter-spacing:.34em; color:rgba(74,54,17,.88); transition:letter-spacing .35s ease, color .35s ease; }
+@media (max-width:760px) {
+  .identity-badge__trigger { min-height:58px; }
+  .identity-badge__ticket-kicker { top:7px; font-size:4.5px; }
+  .identity-badge__trigger span { top:21px; font-size:11px; }
+  .identity-badge__trigger em { top:39px; font-size:6px; }
+  .identity-badge__trigger span::before,
+  .identity-badge__trigger span::after { width:15px; }
+}
+
 /* In-system local application notice — no native alert. */
 .local-app-overlay {
   position: fixed;
