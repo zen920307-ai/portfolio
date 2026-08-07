@@ -26,3 +26,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Mobile surfaces should retain the moving visual texture beneath them: use light translucent cards with a strong blur instead of opaque black panels. The graphic wall keeps all three columns wholly inside its frame.
 - Overlay close actions render at the document root so transformed or scrolling dialog containers can never displace them from the viewport's top-right corner. The PC-browsing notice remains visible as a compact persistent mobile header label.
 - Vibe Coding case studies must explain feature intent, implementation constraints, and the resolution for each major product decision; this detailed product narrative applies on desktop and mobile.
+- Preserve the desktop navigation treatment. Mobile-only helper copy and mobile navigation affordances must be hidden by default and introduced exclusively inside the mobile breakpoint.

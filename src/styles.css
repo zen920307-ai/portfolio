@@ -1902,6 +1902,7 @@ main { position: relative; }
 .nav-brand strong { color: var(--accent); font: 900 18px/1 ui-monospace, Consolas, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", monospace; letter-spacing: -.08em; }
 .nav-brand span { color: rgba(255,255,255,.58); font: 700 7px/1.5 ui-monospace, Consolas, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", monospace; letter-spacing: .14em; }
 .nav-stack { display: grid; }
+.nav-mobile-notice { display: none; }
 .nav-item { min-height: 52px; display: grid; grid-template-columns: 29px 1fr auto; gap: 8px; align-items: center; margin: 0; padding: 0 10px; border-bottom: 1px solid rgba(255,255,255,.1); color: rgba(255,255,255,.52); transition: color .24s ease, background .24s ease, padding .24s ease; }
 .nav-item:hover,
 .nav-item.is-active { transform: none; color: #fff; background: rgba(102,233,255,.075); padding-left: 14px; }
@@ -4553,6 +4554,26 @@ main { position: relative; }
 .vibe-build-notes h5 { margin: 0 0 13px; font-size: 15px; }
 .vibe-build-notes p { margin: 8px 0 0; color: rgba(255,255,255,.68); font-size: 12px; line-height: 1.75; }
 .vibe-build-notes p b { color: #fff; font-weight: 650; }
+
+@media (min-width: 761px) {
+  /* Desktop Vibe cases are a deliberate editorial spread: the overview is
+     scannable at a glance, and the deeper build narrative reads as a set of
+     equal working notes rather than one long mobile column. */
+  .vibe-case { width: min(1180px, calc(100vw - 96px)); margin: 0 auto; }
+  .vibe-case__media { width: 100%; max-height: min(52vh, 590px); margin-top: 42px; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 28px 80px rgba(0,0,0,.32); }
+  .vibe-case__content { max-width: none; grid-template-columns: minmax(0, 1fr) 310px; gap: 42px; padding: 0 0 76px; }
+  .vibe-case__main { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-right: 0; align-content: start; }
+  .vibe-case__main > .vibe-case__block { min-height: 218px; padding: 24px; border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.035); }
+  .vibe-case__main .vibe-case__block:first-child { padding-top: 24px; }
+  .vibe-case__side { gap: 10px; padding-left: 30px; border-left-color: rgba(255,255,255,.13); }
+  .vibe-case__side .vibe-case__block { padding: 20px 0; }
+  .vibe-build-notes { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
+  .vibe-build-notes > header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 14px; padding: 8px 0 4px; border-bottom: 1px solid rgba(255,255,255,.14); }
+  .vibe-build-notes h4 { margin: 0; font-size: 22px; }
+  .vibe-build-notes article { min-height: 292px; align-content: start; padding: 22px; background: linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)); }
+  .vibe-build-notes h5 { font-size: 16px; }
+  .vibe-build-notes p { font-size: 12px; line-height: 1.72; }
+}
 
 @media (max-width: 760px) {
   .overlay-fixed-close {
