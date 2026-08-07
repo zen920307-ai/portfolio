@@ -14,7 +14,6 @@ import DriftWall from "./components/DriftWall.jsx";
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
 const FRAME_CACHE_NAME = "tang-portfolio-frames-v1";
-const FRAME_MANIFEST_PATH = "/__tang-portfolio-frames-v1";
 const framePath = (segment, frameIndex) => (
   `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
 );
@@ -22,24 +21,44 @@ const ALL_FRAME_URLS = FRAME_COUNTS.flatMap((count, segment) => (
   Array.from({ length: count }, (_, frameIndex) => framePath(segment, frameIndex))
 ));
 
-let framePreloadPromise = null;
+// Enter after only the frames that make the first view feel alive. The other
+// 1,193 frames are requested naturally as visitors move through the story;
+// blocking first paint on the entire film made cold starts unnecessarily slow.
+const CRITICAL_FRAME_URLS = [
+  framePath(0, 0),
+  framePath(0, 1),
+  framePath(0, 2),
+  framePath(1, 0),
+  framePath(2, 0),
+  framePath(3, 0),
+  framePath(4, 0),
+];
+const FRAME_ENTRY_URLS = Array.from(
+  { length: 48 },
+  (_, frameIndex) => FRAME_COUNTS.map((_, segment) => framePath(segment, frameIndex)),
+).flat();
+const FRAME_ENTRY_URL_SET = new Set(FRAME_ENTRY_URLS);
+const FRAME_WARMUP_URLS = [
+  // Make every chapter's entrance available first, then fill the remaining
+  // film in natural scene order while the visitor is already browsing.
+  ...FRAME_ENTRY_URLS,
+  ...ALL_FRAME_URLS.filter((url) => !FRAME_ENTRY_URL_SET.has(url)),
+];
+
+let criticalFramePromise = null;
+let backgroundFrameWarmupPromise = null;
 const framePreloadListeners = new Set();
 const emitFrameProgress = (value) => framePreloadListeners.forEach((listener) => listener(value));
 
-async function cacheAllFrames() {
-  if (framePreloadPromise) return framePreloadPromise;
+async function cacheCriticalFrames() {
+  if (criticalFramePromise) return criticalFramePromise;
 
-  framePreloadPromise = (async () => {
+  criticalFramePromise = (async () => {
     if (!("caches" in window)) throw new Error("CACHE_UNAVAILABLE");
     const cache = await caches.open(FRAME_CACHE_NAME);
-    if (await cache.match(FRAME_MANIFEST_PATH)) {
-      emitFrameProgress(100);
-      return;
-    }
-
     let completed = 0;
-    const update = () => emitFrameProgress(Math.round((completed / ALL_FRAME_URLS.length) * 100));
-    const queue = [...ALL_FRAME_URLS];
+    const update = () => emitFrameProgress(Math.round((completed / CRITICAL_FRAME_URLS.length) * 100));
+    const queue = [...CRITICAL_FRAME_URLS];
     const worker = async () => {
       while (queue.length) {
         const url = queue.shift();
@@ -63,15 +82,40 @@ async function cacheAllFrames() {
     };
 
     emitFrameProgress(0);
-    await Promise.all(Array.from({ length: 8 }, worker));
-    await cache.put(FRAME_MANIFEST_PATH, new Response("ready", { headers: { "content-type": "text/plain" } }));
+    await Promise.all(Array.from({ length: 3 }, worker));
     emitFrameProgress(100);
   })().catch((error) => {
-    framePreloadPromise = null;
+    criticalFramePromise = null;
     throw error;
   });
 
-  return framePreloadPromise;
+  return criticalFramePromise;
+}
+
+function warmFrameCacheInBackground() {
+  if (backgroundFrameWarmupPromise || !("caches" in window)) return backgroundFrameWarmupPromise;
+
+  backgroundFrameWarmupPromise = (async () => {
+    const cache = await caches.open(FRAME_CACHE_NAME);
+    const queue = [...FRAME_WARMUP_URLS];
+    const worker = async () => {
+      while (queue.length) {
+        const url = queue.shift();
+        if (!url || await cache.match(url)) continue;
+        try {
+          const response = await fetch(url, { cache: "force-cache" });
+          if (response.ok) await cache.put(url, response.clone());
+        } catch {
+          // Individual frames are still retried by the live backdrop when
+          // needed; a warm-up failure must never interrupt browsing.
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: 4 }, worker));
+  })().catch(() => {
+    backgroundFrameWarmupPromise = null;
+  });
+  return backgroundFrameWarmupPromise;
 }
 
 function useFrameBootloader() {
@@ -80,7 +124,13 @@ function useFrameBootloader() {
   const [error, setError] = useState(false);
   const run = useCallback(() => {
     setError(false);
-    cacheAllFrames().then(() => setReady(true)).catch(() => setError(true));
+    cacheCriticalFrames().then(() => {
+      setReady(true);
+      // Let the first view paint before using the connection for the rest of
+      // the film. Four fetch workers keep scroll continuity without starving
+      // the UI or primary assets.
+      window.setTimeout(warmFrameCacheInBackground, 250);
+    }).catch(() => setError(true));
   }, []);
 
   useEffect(() => {
@@ -99,9 +149,9 @@ function useFrameBootloader() {
 
 function LoadingScreen({ progress, ready, error, onRetry }) {
   const loadingNotes = [
-    "正在把 1,200 帧电影感装进浏览器…",
-    "正在校准 UI、系统与代码的坐标…",
-    "设计工作台已就位，马上打开实验室。",
+    "正在冲洗开场三秒，故事马上开机。",
+    "把重资源留到后台，先让你进来逛。",
+    "灵感已通电，请系好创意安全带。",
   ];
   const [noteIndex, setNoteIndex] = useState(0);
 
@@ -118,17 +168,17 @@ function LoadingScreen({ progress, ready, error, onRetry }) {
       <div className="lab-loader__mark" aria-hidden="true"><i /><i /><i /></div>
       <div className="lab-loader__content">
         <p className="lab-loader__eyebrow">TANG QIDONG / DESIGN LAB</p>
-        <h1>正在给灵感通电，<br />请稍等片刻。</h1>
+        <h1>开场已就位，<br />马上进入设计现场。</h1>
         <div className="lab-loader__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}>
           <span style={{ "--loader-progress": `${progress}%` }} />
         </div>
         <div className="lab-loader__status">
           <span className="lab-loader__note-cycle">{error ? "网络有一点迟疑，点击后继续前进。" : loadingNotes[noteIndex]}</span>
-          <small>{error ? <button type="button" onClick={onRetry}>重新加载</button> : <><b>{String(progress).padStart(3, "0")}%</b> / 1200 FRAMES</>}</small>
+          <small>{error ? <button type="button" onClick={onRetry}>重新加载</button> : <><b>{String(progress).padStart(3, "0")}%</b> / FIRST VIEW</>}</small>
         </div>
         <div className="lab-loader__pulse-row" aria-hidden="true"><i /><i /><i /><i /><i /></div>
       </div>
-      <p className="lab-loader__note">FIRST VISIT / A COMPLETE SCENE BEFORE ENTRY</p>
+      <p className="lab-loader__note">FIRST VIEW READY · THE REST ARRIVES AS YOU EXPLORE</p>
     </section>
   );
 }
