@@ -3639,7 +3639,7 @@ main { position: relative; }
 }
 .identity-badge.is-hidden { visibility: hidden !important; pointer-events: none !important; }
 .cinematic-loading-notice {
-  position: fixed; z-index: 19; top: 106px; right: clamp(20px, 4vw, 56px);
+  position: fixed; z-index: 19; top: 28px; left: clamp(24px, 4vw, 56px);
   display: flex; align-items: center; gap: 10px; max-width: 220px; padding: 10px 13px;
   color: rgba(255,255,255,.9); background: rgba(8,8,7,.5); border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0,0,0,.24); backdrop-filter: blur(16px) saturate(1.15);
@@ -3698,7 +3698,7 @@ body:has([role="dialog"]) .cinematic-loading-notice { visibility: hidden; }
   .identity-badge__trigger-shell.border-glow-card,
   .identity-badge__trigger { min-width: 172px; }
   .identity-badge__trigger { min-height: 54px; padding: 10px 43px 10px 14px; }
-  .cinematic-loading-notice { top: 76px; right: 16px; max-width: 190px; padding: 8px 10px; }
+  .cinematic-loading-notice { top: 16px; left: 16px; max-width: 190px; padding: 8px 10px; }
   .identity-badge__trigger span { font-size: 11px; }
 }
 
