@@ -1624,6 +1624,26 @@ main { position: relative; }
 /* Project details inherit the old site's continuously scrolling UI archive. */
 .detail-overlay { grid-template-columns: 56% 44%; background: rgba(4,4,4,.96); }
 .detail-gallery { min-width: 0; position: relative; overflow: hidden; padding: 16px; background: rgba(6,6,6,.74); }
+.detail-gallery::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -34px;
+  background: var(--gallery-backdrop) center / cover no-repeat;
+  filter: blur(34px) saturate(.92) brightness(.42);
+  opacity: .72;
+  transform: scale(1.08);
+}
+.detail-gallery::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5,5,5,.28), rgba(5,5,5,.66));
+  pointer-events: none;
+}
+.detail-gallery__columns,
+.detail-gallery > p { position: relative; z-index: 2; }
 .detail-gallery::after { content: ""; position: absolute; inset: 0; border: 1px solid rgba(255,255,255,.13); pointer-events: none; }
 .detail-gallery__track { display: flex; flex-direction: column; will-change: transform; transform: translateZ(0); }
 .detail-gallery__track button { margin-bottom: 14px; flex-shrink: 0; }
@@ -3431,8 +3451,8 @@ main { position: relative; }
 
 /* Three cases deliberately use different information rhythms. */
 .detail-overlay--mobile .case-visual-summary { grid-template-columns: repeat(2, minmax(0,1fr)); }
-.detail-overlay--mobile .case-visual-summary article:nth-child(2),
-.detail-overlay--mobile .case-visual-summary article:nth-child(3) { transform: translateY(10px); }
+.detail-overlay--mobile .case-visual-summary { gap: 12px; margin-bottom: 34px; }
+.detail-overlay--mobile .case-visual-summary article { transform: none !important; }
 .detail-overlay--mobile .case-block { margin-bottom: 44px; }
 .detail-overlay--mobile .case-block__head { grid-template-columns: 38px 1fr; }
 .detail-overlay--mobile .case-block__head::after { display: none; }
@@ -4429,7 +4449,7 @@ main { position: relative; }
     white-space: nowrap;
   }
   .nav-mobile-notice {
-    position: absolute;
+    position: fixed;
     top: max(24px, env(safe-area-inset-top));
     right: 24px;
     left: 78px;
@@ -4439,7 +4459,7 @@ main { position: relative; }
     letter-spacing: .08em;
     text-align: right;
   }
-  .chapter-nav:not(.is-open) .nav-mobile-notice { display: none; }
+  .chapter-nav:not(.is-open) .nav-mobile-notice { display: block; }
 
   /* Every close action remains in the same reachable corner while dialog
      content scrolls underneath it. */
@@ -4500,4 +4520,50 @@ main { position: relative; }
     flex-basis: calc((100% - 14px) / 3) !important;
   }
   .graphic-drift .drift-wall__tile img { width: 100%; object-fit: contain; }
+}
+
+/* Close controls live at the document root, never inside a transformed or
+   scrollable overlay. This keeps the exit action in the same viewport corner. */
+.overlay-fixed-close {
+  position: fixed;
+  top: max(22px, env(safe-area-inset-top));
+  right: max(28px, env(safe-area-inset-right));
+  z-index: var(--close-level);
+  min-width: 54px;
+  min-height: 38px;
+  border: 1px solid rgba(255,255,255,.34);
+  border-radius: 999px;
+  background: rgba(8,9,9,.82);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,.28);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  font: 800 9px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .12em;
+  cursor: pointer;
+}
+.overlay-fixed-close:hover { color: var(--accent); border-color: var(--accent); }
+
+.vibe-build-notes { display: grid; gap: 10px; margin-top: 18px; }
+.vibe-build-notes > header { padding: 18px 18px 0; }
+.vibe-build-notes > header small { color: var(--accent); font: 800 8px/1 ui-monospace, Consolas, monospace; letter-spacing: .12em; }
+.vibe-build-notes h4 { margin: 8px 0 0; font-size: 20px; }
+.vibe-build-notes article { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 14px; padding: 18px; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); }
+.vibe-build-notes article > span { color: var(--accent); font: 800 10px/1 ui-monospace, Consolas, monospace; letter-spacing: .1em; }
+.vibe-build-notes h5 { margin: 0 0 13px; font-size: 15px; }
+.vibe-build-notes p { margin: 8px 0 0; color: rgba(255,255,255,.68); font-size: 12px; line-height: 1.75; }
+.vibe-build-notes p b { color: #fff; font-weight: 650; }
+
+@media (max-width: 760px) {
+  .overlay-fixed-close {
+    top: max(14px, env(safe-area-inset-top));
+    right: max(16px, env(safe-area-inset-right));
+    z-index: calc(var(--close-level) + 100);
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 7px;
+  }
+  .vibe-build-notes article { grid-template-columns: 32px minmax(0,1fr); padding: 15px; }
 }

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { gsap } from "gsap";
 import {
   AppWindow, ArrowUpRight, Building2, ChartNoAxesCombined, CircleGauge,
   Compass, Database, Film, Layers3, LayoutDashboard, MessageCircle,
   MousePointerClick, Network, Route, Search, ShieldCheck, Smartphone,
-  Sparkles, Target, UsersRound, Workflow, X,
+  Sparkles, Target, UsersRound, Workflow,
 } from "lucide-react";
 import { career, chapters, profile, projects, systemModules, vibeProjects, works } from "./data.js";
 import { ProfileBadge } from "./ProfileBadge.jsx";
@@ -699,6 +700,20 @@ function useCloseOnPortfolioNavigate(onClose) {
   }, [onClose]);
 }
 
+function FixedClose({ onClose, level = 500 }) {
+  return createPortal(
+    <button
+      type="button"
+      className="overlay-fixed-close"
+      style={{ "--close-level": level }}
+      onClick={onClose}
+    >
+      CLOSE
+    </button>,
+    document.body,
+  );
+}
+
 function ChapterIndex({ index }) {
   return (
     <div className="chapter-index" aria-label={`第 ${index + 1} 页，共 6 页`}>
@@ -750,7 +765,7 @@ function InfoOverlay({ eyebrow, title, onClose, children, className = "" }) {
 
   return (
     <div ref={overlayRef} className={`info-overlay ${className}`} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <button type="button" className="info-overlay__close" onClick={onClose}>CLOSE</button>
+      <FixedClose onClose={onClose} />
       <header className="info-overlay__header overlay-motion" onClick={(e) => e.stopPropagation()}>
         <p className="eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
@@ -902,7 +917,7 @@ function ProfileOverlay({ onClose }) {
 
   return (
     <div ref={rootRef} className="profile-overlay" role="dialog" aria-modal="true" aria-label="个人档案" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <button type="button" className="info-overlay__close" onClick={onClose}>CLOSE</button>
+      <FixedClose onClose={onClose} />
       <div className="profile-overlay__inner" onClick={(e) => e.stopPropagation()}>
         <header className="po-head pm">
           <p className="eyebrow">PROFILE / ZEN.TANG</p>
@@ -1047,7 +1062,7 @@ function CareerStageDetail({ onClose }) {
 
   return (
     <div ref={rootRef} className="career-overlay" role="dialog" aria-modal="true" aria-label="职业经历四个阶段" onClick={(e) => { if (e.target === e.currentTarget || e.target.classList.contains("career-overlay__inner")) onClose(); }}>
-      <button type="button" className="info-overlay__close" onClick={onClose}>CLOSE</button>
+      <FixedClose onClose={onClose} />
       <div className="career-overlay__inner">
         <header className="career-overlay__head cm">
           <p className="eyebrow">CAREER TIMELINE / 2015—NOW</p>
@@ -1243,7 +1258,7 @@ function SystemSection() {
       </div>
       {preview && (
         <div className="system-preview-lightbox" role="dialog" aria-modal="true" aria-label={`${preview.title} 图片预览`} onClick={(e) => { if (e.target === e.currentTarget) setPreview(null); }}>
-          <button type="button" onClick={() => setPreview(null)}>CLOSE</button>
+          <FixedClose onClose={() => setPreview(null)} level={520} />
           <figure><ZoomableImage src={preview.image} alt={`${preview.title} 完整预览`} /><figcaption><span>{preview.index}</span><div><strong>{preview.title}</strong><small>{preview.description}</small></div></figcaption></figure>
         </div>
       )}
@@ -1286,7 +1301,7 @@ function ProjectGallery({ project, onOpen }) {
 
   const images = project.gallery?.length ? project.gallery : [project.image];
   return (
-    <div className={`detail-gallery detail-gallery--${project.caseStyle || "default"}`} ref={rootRef}>
+    <div className={`detail-gallery detail-gallery--${project.caseStyle || "default"}`} ref={rootRef} style={{ "--gallery-backdrop": `url("${project.image}")` }}>
       <div className="detail-gallery__columns">
         {[0, 1, 2].map((columnIndex) => {
           const shifted = [...images.slice(columnIndex), ...images.slice(0, columnIndex)];
@@ -1372,7 +1387,7 @@ function ProjectDetail({ project, onClose }) {
 
   return (
     <div ref={detailRef} className={`detail-overlay detail-overlay--case detail-overlay--${project.caseStyle || "default"}`} role="dialog" aria-modal="true" aria-labelledby="project-title">
-      <button type="button" className="detail-close" onClick={onClose}>CLOSE</button>
+      {!preview && <FixedClose onClose={onClose} />}
       <ProjectGallery project={project} onOpen={setPreview} />
       <article className="case-stage">
         <header className="case-head case-motion">
@@ -1547,7 +1562,7 @@ function ProjectDetail({ project, onClose }) {
           )}
         </section>
       </article>
-      {preview && <div className="project-image-lightbox" role="dialog" aria-modal="true" aria-label="项目界面预览" onClick={(e) => { if (e.target === e.currentTarget) setPreview(null); }}><button type="button" onClick={() => setPreview(null)}>CLOSE</button><ZoomableImage src={preview} alt={`${project.title} 项目界面`} /></div>}
+      {preview && <div className="project-image-lightbox" role="dialog" aria-modal="true" aria-label="项目界面预览" onClick={(e) => { if (e.target === e.currentTarget) setPreview(null); }}><FixedClose onClose={() => setPreview(null)} level={520} /><ZoomableImage src={preview} alt={`${project.title} 项目界面`} /></div>}
     </div>
   );
 }
@@ -1712,7 +1727,7 @@ function GraphicSection() {
       )}
       {selected && (
         <div className="work-lightbox" role="dialog" aria-modal="true" aria-label={selected.title} onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
-          <button type="button" onClick={() => setSelected(null)}>CLOSE</button>
+          <FixedClose onClose={() => setSelected(null)} level={520} />
           <ZoomableImage src={selected.src} alt={selected.title} />
           <p>{selected.title}<small>{selected.type}</small></p>
         </div>
@@ -1785,6 +1800,20 @@ function VibeSection() {
                   <h4>方案</h4>
                   <p>{project.solution}</p>
                 </div>
+                <section className="vibe-build-notes vibe-detail-motion" aria-label="设计推演与问题解决">
+                  <header><small>BUILD NOTES</small><h4>从想法到可用产品</h4></header>
+                  {project.buildNotes.map((note) => (
+                    <article key={note.step}>
+                      <span>{note.step}</span>
+                      <div>
+                        <h5>{note.title}</h5>
+                        <p><b>为什么这样做：</b>{note.thinking}</p>
+                        <p><b>遇到的问题：</b>{note.obstacle}</p>
+                        <p><b>如何解决：</b>{note.resolution}</p>
+                      </div>
+                    </article>
+                  ))}
+                </section>
               </div>
               <aside className="vibe-case__side">
                 <div className="vibe-case__block vibe-detail-motion">
@@ -1807,7 +1836,7 @@ function VibeSection() {
       {qrOpen && project.wechat && (
         <div className="wechat-qr-overlay" role="dialog" aria-modal="true" aria-label={`${project.title} 小程序码`} onClick={(e) => { if (e.target === e.currentTarget) setQrOpen(false); }}>
           <div className="wechat-qr-modal">
-            <button type="button" className="wechat-qr-close" onClick={() => setQrOpen(false)}>CLOSE</button>
+            <FixedClose onClose={() => setQrOpen(false)} level={520} />
             <img src={project.wechat.qr} alt={`${project.title} 小程序码`} />
             <p>{project.wechat.hint}</p>
           </div>
@@ -1816,7 +1845,7 @@ function VibeSection() {
       {localNotice && (
         <div className="local-app-overlay" role="dialog" aria-modal="true" aria-labelledby="local-app-title" onClick={(event) => { if (event.target === event.currentTarget) setLocalNotice(null); }}>
           <div className="local-app-modal">
-            <button type="button" className="local-app-modal__close" aria-label="关闭" onClick={() => setLocalNotice(null)}><X size={18} /></button>
+            <FixedClose onClose={() => setLocalNotice(null)} level={520} />
             <div className="local-app-modal__signal"><AppWindow size={28} strokeWidth={1.6} /><i /></div>
             <small>LOCAL BUILD / PRIVATE PREVIEW</small>
             <h3 id="local-app-title">这是一款本地运行的作品</h3>
