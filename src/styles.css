@@ -3500,8 +3500,17 @@ main { position: relative; }
   outline: 1px solid rgba(255,239,126,.84);
   outline-offset: 3px;
   box-shadow: 0 16px 48px rgba(0,0,0,.5), 0 0 34px rgba(245,207,0,.2);
-  overflow: visible;
+  overflow: hidden;
   transform-origin: 82% 20%;
+  -webkit-mask:
+    linear-gradient(#000 0 0) center / calc(100% - 12px) 100% no-repeat,
+    radial-gradient(circle at 0 10px, transparent 4px, #000 4.7px) left / 12px 20px repeat-y,
+    radial-gradient(circle at 100% 10px, transparent 4px, #000 4.7px) right / 12px 20px repeat-y;
+  mask:
+    linear-gradient(#000 0 0) center / calc(100% - 12px) 100% no-repeat,
+    radial-gradient(circle at 0 10px, transparent 4px, #000 4.7px) left / 12px 20px repeat-y,
+    radial-gradient(circle at 100% 10px, transparent 4px, #000 4.7px) right / 12px 20px repeat-y;
+  animation: contact-ticket-breathe 2.8s ease-in-out infinite;
 }
 .identity-badge__trigger-shell.border-glow-card::after {
   display: none;
@@ -3516,7 +3525,7 @@ main { position: relative; }
   border-radius: 0;
   text-align: left;
   background: linear-gradient(112deg, #f7d800 0%, #efc800 64%, #dfb600 100%);
-  animation: contact-breathe 2.8s ease-in-out infinite;
+  animation: none;
 }
 .identity-badge__trigger::before {
   display: none;
@@ -3527,10 +3536,14 @@ main { position: relative; }
 .identity-badge__trigger em { font-size: 7px; letter-spacing: .17em; color: rgba(10,10,10,.58); }
 .identity-badge__trigger-shell.border-glow-card:hover,
 .identity-badge.is-open .identity-badge__trigger-shell.border-glow-card {
+  animation-play-state: paused;
   transform: translateY(-4px) rotate(-1.3deg) scale(1.035);
   box-shadow: 0 24px 62px rgba(0,0,0,.58), 0 0 48px rgba(245,207,0,.45);
 }
-@keyframes contact-breathe { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-2px); } }
+/* Move the entire ticket, including the perforated outline, as a single object. */
+@keyframes contact-ticket-breathe { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-2px) rotate(-.28deg); } }
+.identity-badge__trigger:hover,
+.identity-badge.is-open .identity-badge__trigger { transform: none; }
 
 /* In-system local application notice — no native alert. */
 .local-app-overlay {
