@@ -10,9 +10,9 @@ const CONTACTS = [
 const getRopePath = (side, x = 0, y = 0) => {
   const startX = side === "left" ? 60 : 200;
   const endX = 130 + x;
-  const endY = 232 + y;
+  const endY = 194 + y;
   const midX = (side === "left" ? 95 : 165) + x * 0.36;
-  const midY = 110 + Math.max(y, 0) * 0.2 + Math.abs(x) * 0.05;
+  const midY = 92 + Math.max(y, 0) * 0.2 + Math.abs(x) * 0.05;
   return `M${startX} 0 C${startX} 54 ${midX} ${midY} ${endX} ${endY}`;
 };
 
@@ -201,7 +201,7 @@ export function ProfileBadge() {
         </button>
       </BorderGlow>
       <div className="identity-badge__drop" ref={dropRef}>
-        <svg className="identity-badge__rope identity-badge__rope--back" viewBox="0 0 260 260" aria-hidden="true">
+        <svg className="identity-badge__rope identity-badge__rope--back" viewBox="0 0 260 220" aria-hidden="true">
           <path className="rope-shadow" d={getRopePath("right")} ref={ropeRightShadowRef} />
           <path className="rope-face" d={getRopePath("right")} ref={ropeRightFaceRef} />
         </svg>
@@ -231,7 +231,7 @@ export function ProfileBadge() {
             </section>
             <section className="identity-card__face identity-card__back">
               <p className="identity-card__scan">SCAN TO CONTACT</p>
-              <img className="identity-card__qr" src="/assets/badge/wechat-qr.png" alt="唐启东微信二维码" draggable="false" />
+              <img className="identity-card__qr" src="/assets/badge/wechat-qr.webp" alt="唐启东微信二维码" draggable="false" />
               <div className="identity-card__contacts">
                 {CONTACTS.map(([label, value]) => (
                   <p key={label}><small>{label}</small><strong>{value}</strong></p>
@@ -241,7 +241,7 @@ export function ProfileBadge() {
             </section>
           </div>
         </div>
-        <svg className="identity-badge__rope identity-badge__rope--front" viewBox="0 0 260 260" aria-hidden="true">
+        <svg className="identity-badge__rope identity-badge__rope--front" viewBox="0 0 260 220" aria-hidden="true">
           <path className="rope-shadow" d={getRopePath("left")} ref={ropeLeftShadowRef} />
           <path className="rope-face" d={getRopePath("left")} ref={ropeLeftFaceRef} />
         </svg>

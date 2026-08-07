@@ -1,11 +1,38 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
+import {
+  AppWindow, ArrowUpRight, Building2, ChartNoAxesCombined, CircleGauge,
+  Compass, Database, Film, Layers3, LayoutDashboard, MessageCircle,
+  MousePointerClick, Network, Route, Search, ShieldCheck, Smartphone,
+  Sparkles, Target, UsersRound, Workflow, X,
+} from "lucide-react";
 import { career, chapters, profile, projects, systemModules, vibeProjects, works } from "./data.js";
 import { ProfileBadge } from "./ProfileBadge.jsx";
 import DriftWall from "./components/DriftWall.jsx";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
+
+const CASE_VISUAL_SUMMARIES = {
+  mobile: [
+    [Smartphone, "移动体验", "375 × 812"],
+    [UsersRound, "角色模型", "玩家 / 店主 / DM"],
+    [Route, "核心路径", "发现 → 组局 → 入场"],
+    [Film, "叙事气质", "沉浸式剧场"],
+  ],
+  admin: [
+    [Building2, "园区业务", "多主体协同"],
+    [ShieldCheck, "权限体系", "角色 × 数据域"],
+    [Database, "数据中台", "统一资产视图"],
+    [Workflow, "审批流", "节点可追踪"],
+  ],
+  website: [
+    [Compass, "品牌叙事", "从价值到证据"],
+    [Layers3, "内容架构", "长短页组合"],
+    [MousePointerClick, "转化路径", "演示 / 咨询 / 试用"],
+    [Sparkles, "视觉识别", "产品化表达"],
+  ],
+};
 
 /**
  * Page-edge magnet: scrolling is 100% native everywhere. Only when scrolling
@@ -108,11 +135,6 @@ function useScrollSnap(pageCount, refs) {
     };
   }, [pageCount, refs]);
 }
-
-const frameTimeForProgress = (duration, frameCount, progress) => {
-  const frameIndex = Math.round(clamp(progress, 0, 1) * (frameCount - 1));
-  return frameIndex * (duration / frameCount);
-};
 
 /** Smooth cubic arcs through content docks (Catmull-Rom style). */
 const buildArcPath = (points) => {
@@ -241,9 +263,10 @@ function NarrativeThread({ activeChapter }) {
       >
         <defs>
           <linearGradient id="thread-progress" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={geometry.height}>
-            <stop offset="0%" stopColor="rgba(255,255,255,0.35)" />
-            <stop offset="40%" stopColor="rgba(243,198,0,0.55)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0.4)" />
+            <stop offset="0%" stopColor="rgba(255,255,255,0.42)" />
+            <stop offset="36%" stopColor="rgba(246,255,0,0.72)" />
+            <stop offset="70%" stopColor="rgba(246,255,0,0.9)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0.46)" />
           </linearGradient>
         </defs>
 
@@ -263,57 +286,135 @@ function NarrativeThread({ activeChapter }) {
           </g>
         ))}
 
-        <circle className="narrative-thread__head" ref={headRef} r="3" />
+        <circle className="narrative-thread__head" ref={headRef} r="3.6" />
       </svg>
     </div>
   );
 }
 
 function CinematicBackdrop() {
-  const videoRefs = useRef([]);
+  const canvasRef = useRef(null);
   const vignetteRef = useRef(null);
-  const durations = useRef([5, 5, 5, 5, 5]);
-  const targetTimes = useRef([0, 0, 0, 0, 0]);
-  const activeSegment = useRef(0);
-  const activatedRef = useRef(false);
-  const [visibleSegment, setVisibleSegment] = useState(0);
-  const videos = [1, 2, 3, 4, 5];
-  // Mobile needs videos to be "playing-ready" before currentTime can be scrubbed.
-  // We activate them once on first user gesture, then pause and scrub via currentTime.
-  const isMobile = typeof window !== "undefined" && (
-    window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 760
-  );
+  const targetKeyRef = useRef("0-0");
+  const bitmapCacheRef = useRef(new Map());
+  const pendingFramesRef = useRef(new Map());
 
-  // Activate (unlock) all videos on the first user interaction so iOS lets us
-  // set currentTime later. play() then immediate pause() flips them into a
-  // scrub-friendly state without leaving them autoplaying.
-  useEffect(() => {
-    if (!isMobile) return undefined;
-    const unlock = () => {
-      if (activatedRef.current) return;
-      activatedRef.current = true;
-      videoRefs.current.forEach((v) => {
-        if (!v) return;
-        const p = v.play();
-        if (p && typeof p.then === "function") {
-          p.then(() => { v.pause(); }).catch(() => {});
-        } else {
-          v.pause();
-        }
-      });
-    };
-    window.addEventListener("touchstart", unlock, { passive: true, once: true });
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("scroll", unlock, { passive: true, once: true });
-    return () => {
-      window.removeEventListener("touchstart", unlock);
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("scroll", unlock);
-    };
-  }, [isMobile]);
+  const frameSource = useCallback((segment, frameIndex) => (
+    `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
+  ), []);
 
   useEffect(() => {
     let frameRequest = 0;
+    let disposed = false;
+    const abortController = new AbortController();
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d", { alpha: true, desynchronized: true });
+    let lastSegment = 0;
+    let lastFrameIndex = 0;
+
+    const touchBitmap = (key, bitmap) => {
+      bitmapCacheRef.current.delete(key);
+      bitmapCacheRef.current.set(key, bitmap);
+    };
+
+    const trimCache = () => {
+      while (bitmapCacheRef.current.size > 24) {
+        const oldestKey = bitmapCacheRef.current.keys().next().value;
+        if (oldestKey === targetKeyRef.current) {
+          const bitmap = bitmapCacheRef.current.get(oldestKey);
+          touchBitmap(oldestKey, bitmap);
+          continue;
+        }
+        const bitmap = bitmapCacheRef.current.get(oldestKey);
+        bitmapCacheRef.current.delete(oldestKey);
+        bitmap?.close?.();
+      }
+    };
+
+    const decodeFrame = (blob) => {
+      if (typeof createImageBitmap === "function") return createImageBitmap(blob);
+      return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const image = new Image();
+        image.onload = () => { URL.revokeObjectURL(objectUrl); resolve(image); };
+        image.onerror = (error) => { URL.revokeObjectURL(objectUrl); reject(error); };
+        image.src = objectUrl;
+      });
+    };
+
+    const loadBitmap = (segment, frameIndex) => {
+      const key = `${segment}-${frameIndex}`;
+      const cached = bitmapCacheRef.current.get(key);
+      if (cached) {
+        touchBitmap(key, cached);
+        return Promise.resolve(cached);
+      }
+      if (pendingFramesRef.current.has(key)) return pendingFramesRef.current.get(key);
+
+      const promise = fetch(frameSource(segment, frameIndex), {
+        cache: "force-cache",
+        signal: abortController.signal,
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error(`Frame ${key} failed: ${response.status}`);
+          return response.blob();
+        })
+        .then((blob) => decodeFrame(blob))
+        .then((bitmap) => {
+          pendingFramesRef.current.delete(key);
+          if (disposed) { bitmap.close?.(); return null; }
+          touchBitmap(key, bitmap);
+          trimCache();
+          return bitmap;
+        })
+        .catch((error) => {
+          pendingFramesRef.current.delete(key);
+          if (error?.name !== "AbortError") console.warn("[frames]", error);
+          return null;
+        });
+      pendingFramesRef.current.set(key, promise);
+      return promise;
+    };
+
+    const paintBitmap = (bitmap, segment, frameIndex) => {
+      if (!bitmap || !context || !canvas) return;
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      canvas.dataset.segment = String(segment + 1);
+      canvas.dataset.frame = String(frameIndex + 1).padStart(4, "0");
+      canvas.dataset.source = frameSource(segment, frameIndex);
+    };
+
+    const warmFrame = (segment, frameIndex) => {
+      if (segment < 0 || segment > 4) return;
+      const bounded = clamp(frameIndex, 0, FRAME_COUNTS[segment] - 1);
+      if (pendingFramesRef.current.size >= 10) return;
+      loadBitmap(segment, bounded);
+    };
+
+    const requestFrame = (segment, frameIndex) => {
+      const key = `${segment}-${frameIndex}`;
+      targetKeyRef.current = key;
+      const cached = bitmapCacheRef.current.get(key);
+      if (cached) {
+        touchBitmap(key, cached);
+        paintBitmap(cached, segment, frameIndex);
+      } else {
+        loadBitmap(segment, frameIndex).then((bitmap) => {
+          if (!disposed && targetKeyRef.current === key) paintBitmap(bitmap, segment, frameIndex);
+        });
+      }
+
+      const direction = segment === lastSegment ? Math.sign(frameIndex - lastFrameIndex) || 1 : 1;
+      for (let offset = 1; offset <= 8; offset += 1) warmFrame(segment, frameIndex + offset * direction);
+      for (let offset = 1; offset <= 3; offset += 1) warmFrame(segment, frameIndex - offset * direction);
+      if (frameIndex > FRAME_COUNTS[segment] - 28) {
+        for (let offset = 0; offset < 5; offset += 1) warmFrame(segment + 1, offset);
+      }
+      lastSegment = segment;
+      lastFrameIndex = frameIndex;
+    };
+
+    requestFrame(0, 0);
 
     const syncFrame = () => {
       frameRequest = 0;
@@ -321,29 +422,8 @@ function CinematicBackdrop() {
       const rawPage = window.scrollY / pageHeight;
       const segment = clamp(Math.floor(rawPage), 0, 4);
       const local = segment === 4 && rawPage >= 5 ? 1 : clamp(rawPage - segment, 0, 1);
-      targetTimes.current[segment] = frameTimeForProgress(durations.current[segment], FRAME_COUNTS[segment], local);
-
-      if (segment > activeSegment.current) {
-        for (let index = activeSegment.current; index < segment; index += 1) {
-          targetTimes.current[index] = frameTimeForProgress(durations.current[index], FRAME_COUNTS[index], 1);
-          const previousVideo = videoRefs.current[index];
-          if (previousVideo?.readyState >= 1) previousVideo.currentTime = targetTimes.current[index];
-        }
-      } else if (segment < activeSegment.current) {
-        for (let index = activeSegment.current; index > segment; index -= 1) {
-          targetTimes.current[index] = 0;
-          const nextVideo = videoRefs.current[index];
-          if (nextVideo?.readyState >= 1) nextVideo.currentTime = 0;
-        }
-      }
-
-      activeSegment.current = segment;
-      setVisibleSegment((current) => current === segment ? current : segment);
-      const video = videoRefs.current[segment];
-      const target = targetTimes.current[segment];
-      if (video && video.readyState >= 1 && Math.abs(video.currentTime - target) > 0.008) {
-        video.currentTime = target;
-      }
+      const frameIndex = Math.round(local * (FRAME_COUNTS[segment] - 1));
+      requestFrame(segment, frameIndex);
 
       if (vignetteRef.current) {
         const distance = Math.abs(rawPage - 2.5);
@@ -360,51 +440,20 @@ function CinematicBackdrop() {
     window.addEventListener("scroll", queueFrame, { passive: true });
     window.addEventListener("resize", queueFrame);
     return () => {
+      disposed = true;
+      abortController.abort();
       window.removeEventListener("scroll", queueFrame);
       window.removeEventListener("resize", queueFrame);
       window.cancelAnimationFrame(frameRequest);
+      bitmapCacheRef.current.forEach((bitmap) => bitmap?.close?.());
+      bitmapCacheRef.current.clear();
+      pendingFramesRef.current.clear();
     };
-  }, []);
-
-  // Trigger loading of adjacent videos when the visible segment changes.
-  // Setting the preload prop alone won't start a fetch for an already-mounted
-  // <video>; calling load() forces the browser to begin.
-  useEffect(() => {
-    videoRefs.current.forEach((v, i) => {
-      if (!v) return;
-      if (Math.abs(i - visibleSegment) <= 1 && v.readyState === 0) {
-        v.load();
-      }
-    });
-  }, [visibleSegment]);
+  }, [frameSource]);
 
   return (
     <div className="cinematic-backdrop" aria-hidden="true">
-      {videos.map((number, index) => {
-        // Lazy preload: only the current segment and the next one are loaded
-        // eagerly. Far-away segments stay at "none" so the browser doesn't
-        // fetch all 30MB on first paint — just the ~7MB the user is viewing.
-        const shouldPreload = Math.abs(index - visibleSegment) <= 1;
-        return (
-          <video
-            key={number}
-            ref={(element) => { videoRefs.current[index] = element; }}
-            className={index === visibleSegment ? "background-video is-active" : "background-video"}
-            src={`/videos/scroll-0${number}.mp4?v=240`}
-            muted
-            playsInline
-            preload={shouldPreload ? "auto" : "none"}
-            onLoadedMetadata={(event) => {
-              durations.current[index] = event.currentTarget.duration || 5;
-              const pageHeight = Math.max(1, window.innerHeight);
-              const rawPage = window.scrollY / pageHeight;
-              const local = index === 4 && rawPage >= 5 ? 1 : clamp(rawPage - index, 0, 1);
-              targetTimes.current[index] = frameTimeForProgress(durations.current[index], FRAME_COUNTS[index], local);
-              event.currentTarget.currentTime = targetTimes.current[index];
-            }}
-          />
-        );
-      })}
+      <canvas ref={canvasRef} className="background-canvas" width="1920" height="1080" />
       <div className="video-wash" />
       <div className="video-vignette" ref={vignetteRef} />
       <div className="video-vignette-left" />
@@ -412,6 +461,11 @@ function CinematicBackdrop() {
     </div>
   );
 }
+
+/*
+ * Keep the backdrop implementation above intentionally canvas-only. The
+ * source MP4 files are offline masters and never participate at runtime.
+ */
 
 function Navigation({ activeChapter, onNavigate }) {
   const [open, setOpen] = useState(false);
@@ -838,19 +892,53 @@ function ExperienceSection() {
   );
 }
 
-// Compositor-thread vertical marquee. The track renders its content twice; each
-// item carries its own bottom margin (no grid gap) so the track height is
-// exactly 2 * (itemHeight + margin). Translating by -50% lands copy 2's first
-// item exactly under copy 1's first item, giving a seamless loop with zero JS
-// measurement. Runs on the compositor thread, so it never stutters.
-const marqueeLaunch = (track, direction, durationIndex) => {
-  const duration = 17 + durationIndex * 3;
-  track.style.setProperty("--marquee-duration", `${duration}s`);
-  track.style.animation = `marquee-${direction < 0 ? "up" : "down"} var(--marquee-duration) linear infinite`;
-  return () => { track.style.animation = ""; };
+// Build a loop unit tall enough to cover the viewport before duplicating it.
+// This prevents short columns from exposing an empty gap during the cycle.
+const fillLoopUnit = (items, minItems = 12) => {
+  if (!items.length) return [];
+  const repeats = Math.max(1, Math.ceil(minItems / items.length));
+  return Array.from({ length: repeats }, () => items).flat();
 };
-const marqueePause = (track) => { track.style.animationPlayState = "paused"; };
-const marqueeResume = (track) => { track.style.animationPlayState = "running"; };
+
+// Web Animations keeps the playhead continuous when playbackRate changes.
+// The track always contains exactly two identical, sufficiently tall units, so
+// moving by 50% is a genuinely seamless loop in either direction.
+const marqueeLaunch = (track, direction, durationIndex) => {
+  let animation;
+  let frameId;
+  let disposed = false;
+  const images = Array.from(track.querySelectorAll("img"));
+  const ready = images.map((img) => img.complete
+    ? Promise.resolve()
+    : new Promise((resolve) => {
+        img.addEventListener("load", resolve, { once: true });
+        img.addEventListener("error", resolve, { once: true });
+      }));
+
+  Promise.all(ready).then(() => {
+    if (disposed) return;
+    frameId = requestAnimationFrame(() => {
+      if (disposed) return;
+      const loopDistance = Math.max(track.scrollHeight / 2, 1);
+      const pixelsPerSecond = 30 + durationIndex * 2;
+      const duration = Math.max(22000, (loopDistance / pixelsPerSecond) * 1000);
+      const frames = direction < 0
+        ? [{ transform: "translate3d(0,-50%,0)" }, { transform: "translate3d(0,0,0)" }]
+        : [{ transform: "translate3d(0,0,0)" }, { transform: "translate3d(0,-50%,0)" }];
+      animation = track.animate(frames, { duration, iterations: Infinity, easing: "linear" });
+      track.__marqueeAnimation = animation;
+    });
+  });
+
+  return () => {
+    disposed = true;
+    if (frameId) cancelAnimationFrame(frameId);
+    animation?.cancel();
+    delete track.__marqueeAnimation;
+  };
+};
+const marqueePause = (track) => { track.__marqueeAnimation?.pause(); };
+const marqueeResume = (track) => { track.__marqueeAnimation?.play(); };
 
 function VerticalImageStrips({ module, onPreview }) {
   const rootRef = useRef(null);
@@ -872,12 +960,13 @@ function VerticalImageStrips({ module, onPreview }) {
         // Deal the gallery into 3 columns round-robin.
         const column = images.filter((_, i) => i % 3 === columnIndex);
         const shifted = column.length ? column : [images[0]];
+        const loopUnit = fillLoopUnit(shifted);
         return (
           <div className="vertical-strip" key={columnIndex}>
             <div className="vertical-strip__track" onMouseEnter={pauseColumn} onMouseLeave={resumeColumn}>
-              {[...shifted, ...shifted].map((src, index) => (
+              {[...loopUnit, ...loopUnit].map((src, index) => (
                 <button type="button" key={`${src}-${columnIndex}-${index}`} onClick={() => onPreview?.({ src, module })}>
-                  <img src={src} alt={`${module.title} 界面示例 ${index % shifted.length + 1}`} />
+                  <img src={src} alt={`${module.title} 界面示例 ${index % loopUnit.length + 1}`} />
                   <span>{module.index}</span>
                 </button>
               ))}
@@ -963,14 +1052,19 @@ function ProjectGallery({ project, onOpen }) {
 
   const images = project.gallery?.length ? project.gallery : [project.image];
   return (
-    <div className="detail-gallery" ref={rootRef}>
+    <div className={`detail-gallery detail-gallery--${project.caseStyle || "default"}`} ref={rootRef}>
       <div className="detail-gallery__columns">
         {[0, 1, 2].map((columnIndex) => {
           const shifted = [...images.slice(columnIndex), ...images.slice(0, columnIndex)];
-          return <div className="detail-gallery__column" key={columnIndex}><div className="detail-gallery__track">{[...shifted, ...shifted].map((src, index) => <button type="button" key={`${src}-${columnIndex}-${index}`} onClick={() => onOpen(src)}><img src={src} alt={`${project.title} UI ${index % images.length + 1}`} /></button>)}</div></div>;
+          const columnImages = ["mobile", "admin", "website"].includes(project.caseStyle)
+            ? images.filter((_, index) => index % 3 === columnIndex)
+            : shifted;
+          const stream = columnImages.length ? columnImages : images;
+          const loopUnit = fillLoopUnit(stream);
+          return <div className="detail-gallery__column" key={columnIndex}><div className="detail-gallery__track">{[...loopUnit, ...loopUnit].map((src, index) => <button type="button" key={`${src}-${columnIndex}-${index}`} onClick={() => onOpen(src)}><img src={src} alt={`${project.title} UI ${index % loopUnit.length + 1}`} /></button>)}</div></div>;
         })}
       </div>
-      <p>UI ARCHIVE · 03 VERTICAL STREAMS</p>
+      <p>{project.caseStyle === "website" ? "WEB PAGES · MIXED-LENGTH STREAMS" : "UI ARCHIVE · 03 VERTICAL STREAMS"}</p>
     </div>
   );
 }
@@ -1035,10 +1129,14 @@ function ProjectDetail({ project, onClose }) {
   const capabilities = project.capabilities || [];
   const outcomeBars = project.outcomeBars || [];
   const stack = project.stack || [];
+  const research = project.research || [];
+  const insights = project.insights || [];
+  const principles = project.principles || [];
+  const visualSummary = CASE_VISUAL_SUMMARIES[project.caseStyle] || CASE_VISUAL_SUMMARIES.website;
   const maxSplit = Math.max(...contributionSplit.map((s) => s.value), 1);
 
   return (
-    <div ref={detailRef} className="detail-overlay detail-overlay--case" role="dialog" aria-modal="true" aria-labelledby="project-title">
+    <div ref={detailRef} className={`detail-overlay detail-overlay--case detail-overlay--${project.caseStyle || "default"}`} role="dialog" aria-modal="true" aria-labelledby="project-title">
       <button type="button" className="detail-close" onClick={onClose}>CLOSE</button>
       <ProjectGallery project={project} onOpen={setPreview} />
       <article className="case-stage">
@@ -1063,9 +1161,21 @@ function ProjectDetail({ project, onClose }) {
           {project.metrics.map(([value, label]) => <span key={label}><strong>{value}</strong><small>{label}</small></span>)}
         </section>
 
+        <section className="case-visual-summary case-motion" aria-label="项目能力摘要">
+          {visualSummary.map(([Icon, label, value]) => (
+            <article key={label}>
+              <span><Icon size={19} strokeWidth={1.7} aria-hidden="true" /></span>
+              <div><small>{label}</small><strong>{value}</strong></div>
+              <ArrowUpRight size={14} strokeWidth={1.7} aria-hidden="true" />
+            </article>
+          ))}
+        </section>
+
         <section className="case-block case-motion" aria-labelledby="sec-01">
           <header className="case-block__head"><span>01</span><div><strong>项目概述</strong><small>PROJECT OVERVIEW</small></div></header>
           <p className="case-block__lead">{project.overview}</p>
+          {project.background && <p className="case-block__support">{project.background}</p>}
+          {project.disclaimer && <p className="case-disclaimer">{project.disclaimer}</p>}
         </section>
 
         <section className="case-block case-motion" aria-labelledby="sec-02">
@@ -1087,8 +1197,23 @@ function ProjectDetail({ project, onClose }) {
           </div>
         </section>
 
+        {(research.length > 0 || insights.length > 0) && (
+          <section className="case-block case-motion" aria-labelledby="sec-research">
+            <header className="case-block__head"><span>03</span><div><strong>研究与洞察</strong><small>RESEARCH &amp; INSIGHTS</small></div></header>
+            <div className="case-research">
+              {research.map((item) => (
+                <article key={`${item.method}-${item.sample}`}>
+                  <div><small>{item.method}</small><b>{item.sample}</b></div>
+                  <p>{item.finding}</p>
+                </article>
+              ))}
+            </div>
+            {insights.length > 0 && <ol className="case-insights">{insights.map((item, index) => <li key={item}><span>0{index + 1}</span><p>{item}</p></li>)}</ol>}
+          </section>
+        )}
+
         <section className="case-block case-motion" aria-labelledby="sec-03">
-          <header className="case-block__head"><span>03</span><div><strong>我的贡献</strong><small>MY CONTRIBUTION</small></div></header>
+          <header className="case-block__head"><span>04</span><div><strong>我的贡献</strong><small>MY CONTRIBUTION</small></div></header>
           <p className="case-block__lead">{project.contribution}</p>
           <ul className="case-tags">
             {project.contributionTags.map((tag) => <li key={tag}>{tag}</li>)}
@@ -1107,7 +1232,7 @@ function ProjectDetail({ project, onClose }) {
         </section>
 
         <section className="case-block case-motion" aria-labelledby="sec-04">
-          <header className="case-block__head"><span>04</span><div><strong>核心设计</strong><small>CORE DESIGN</small></div></header>
+          <header className="case-block__head"><span>05</span><div><strong>核心设计</strong><small>CORE DESIGN</small></div></header>
           <ul className="case-core">
             {coreDesign.map((item, index) => (
               <li key={index}>
@@ -1134,9 +1259,16 @@ function ProjectDetail({ project, onClose }) {
           </ul>
         </section>
 
+        {principles.length > 0 && (
+          <section className="case-block case-motion" aria-labelledby="sec-principles">
+            <header className="case-block__head"><span>06</span><div><strong>设计原则</strong><small>DESIGN PRINCIPLES</small></div></header>
+            <div className="case-principles">{principles.map((item, index) => <article key={item.title}><span>0{index + 1}</span><strong>{item.title}</strong><p>{item.desc}</p></article>)}</div>
+          </section>
+        )}
+
         {timelinePhases.length > 0 && (
           <section className="case-block case-motion" aria-labelledby="sec-05a">
-            <header className="case-block__head"><span>05</span><div><strong>设计流程</strong><small>PROCESS</small></div></header>
+            <header className="case-block__head"><span>07</span><div><strong>设计流程</strong><small>PROCESS</small></div></header>
             <ol className="case-timeline">
               {timelinePhases.map((phase, index) => (
                 <li key={index}>
@@ -1153,7 +1285,7 @@ function ProjectDetail({ project, onClose }) {
         )}
 
         <section className="case-block case-motion" aria-labelledby="sec-05b">
-          <header className="case-block__head"><span>05</span><div><strong>设计与实现</strong><small>DESIGN TO PRODUCT</small></div></header>
+          <header className="case-block__head"><span>08</span><div><strong>设计与实现</strong><small>DESIGN TO PRODUCT</small></div></header>
           {capabilities.length > 0 && (
             <div className="case-cap">
               <CapabilityRadar data={capabilities} />
@@ -1165,7 +1297,7 @@ function ProjectDetail({ project, onClose }) {
         </section>
 
         <section className="case-block case-motion" aria-labelledby="sec-06">
-          <header className="case-block__head"><span>06</span><div><strong>项目成果</strong><small>PROJECT OUTCOME</small></div></header>
+          <header className="case-block__head"><span>09</span><div><strong>项目成果</strong><small>PROJECT OUTCOME</small></div></header>
           <p className="case-block__lead">{project.outcome}</p>
           {outcomeBars.length > 0 && (
             <div className="case-outcome" aria-label="成果可视化">
@@ -1197,9 +1329,17 @@ function ProjectsSection() {
         </header>
         <div className="project-cover-grid motion-item">
           {projects.map((item, index) => (
-            <button type="button" className="project-cover-card interactive-card" key={item.id} onClick={() => setDetail(item)}>
-              <img src={item.image} alt="" />
-              <div className="project-cover-card__copy"><span>0{index + 1} / {item.code}</span><h3>{item.title}</h3><small>{item.type}</small><b>OPEN CASE / 查看详情</b></div>
+            <button type="button" className={`project-cover-card project-cover-card--${index + 1} interactive-card`} key={item.id} onClick={() => setDetail(item)}>
+              <div className="project-cover-card__media" style={{ "--project-cover": `url("${item.image}")` }}>
+                <img className="project-cover-card__art" src={item.image} alt={`${item.title} 项目封面`} />
+              </div>
+              <div className="project-cover-card__copy">
+                <div className="project-cover-card__meta"><span>0{index + 1} / {item.code}</span><ArrowUpRight size={15} aria-hidden="true" /></div>
+                <small>{item.type}</small>
+                <h3>{item.title}</h3>
+                <p>{item.brief}</p>
+                <div className="project-cover-card__foot"><span>{item.role}</span><b>VIEW CASE / 查看详情</b></div>
+              </div>
             </button>
           ))}
         </div>
@@ -1223,21 +1363,12 @@ function GraphicCarousel({ items, onOpen }) {
 
   const columns = [0, 1, 2].map((column) => items.filter((_, index) => index % 3 === column));
   const wheelResetRef = useRef(null);
-  const baseDurationRef = useRef([]);
   const respondToWheel = () => {
-    tracksRef.current.forEach((track, index) => {
-      if (!baseDurationRef.current[index]) {
-        const raw = track.style.getPropertyValue("--marquee-duration") || "26s";
-        baseDurationRef.current[index] = parseFloat(raw) || 26;
-      }
-      track.style.animationDuration = `${baseDurationRef.current[index] * 0.4}s`;
-    });
+    tracksRef.current.forEach((track) => track.__marqueeAnimation?.updatePlaybackRate(2.25));
     if (wheelResetRef.current) clearTimeout(wheelResetRef.current);
     wheelResetRef.current = setTimeout(() => {
-      tracksRef.current.forEach((track, index) => {
-        track.style.animationDuration = `${baseDurationRef.current[index] || 26}s`;
-      });
-    }, 200);
+      tracksRef.current.forEach((track) => track.__marqueeAnimation?.updatePlaybackRate(1));
+    }, 260);
   };
   const pauseColumn = (event) => marqueePause(event.currentTarget);
   const resumeColumn = (event) => marqueeResume(event.currentTarget);
@@ -1249,7 +1380,10 @@ function GraphicCarousel({ items, onOpen }) {
         {columns.map((column, columnIndex) => (
           <div className="graphic-column" key={columnIndex}>
             <div className="graphic-column__track" onMouseEnter={pauseColumn} onMouseLeave={resumeColumn}>
-              {[...column, ...column].map((work, index) => <button type="button" className="graphic-slide interactive-card" key={`${work.src}-${columnIndex}-${index}`} onClick={() => onOpen(work)}><img src={work.src} alt={work.title} loading="lazy" /><span><small>{work.type}</small><strong>{work.title}</strong></span></button>)}
+              {(() => {
+                const loopUnit = fillLoopUnit(column);
+                return [...loopUnit, ...loopUnit].map((work, index) => <button type="button" className="graphic-slide interactive-card" key={`${work.src}-${columnIndex}-${index}`} onClick={() => onOpen(work)}><img src={work.src} alt={work.title} loading="lazy" /><span><small>{work.type}</small><strong>{work.title}</strong></span></button>);
+              })()}
             </div>
           </div>
         ))}
@@ -1346,6 +1480,7 @@ function VibeSection() {
   const [active, setActive] = useState(0);
   const [detailOpen, setDetailOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [localNotice, setLocalNotice] = useState(null);
   const detailRef = useRef(null);
 
   useLayoutEffect(() => {
@@ -1369,7 +1504,7 @@ function VibeSection() {
                 {item.mediaType === "video" ? <video src={item.image} muted loop playsInline preload="metadata" /> : <img src={item.image} alt={`${item.title} 预览`} />}
                 <span>{item.code}</span>
               </button>
-              <div><small>{item.index} / EXPERIMENT</small><h3>{item.title}</h3><p>{item.description}</p><div className="vibe-card-actions"><button type="button" className="vibe-btn-detail" onClick={() => { setActive(index); setDetailOpen(true); }}>构建过程</button>{item.wechat ? (<button type="button" className="vibe-btn-visit" onClick={() => { setActive(index); setQrOpen(true); }}>打开产品</button>) : item.link && item.link !== "#" ? (<a className="vibe-btn-visit" href={item.link} target="_blank" rel="noreferrer">打开产品</a>) : (<button type="button" className="vibe-btn-visit" onClick={() => alert("本地应用，请联系作者体验")}>打开产品</button>)}</div></div>
+              <div><small>{item.index} / EXPERIMENT</small><h3>{item.title}</h3><p>{item.description}</p><div className="vibe-card-actions"><button type="button" className="vibe-btn-detail" onClick={() => { setActive(index); setDetailOpen(true); }}>构建过程</button>{item.wechat ? (<button type="button" className="vibe-btn-visit" onClick={() => { setActive(index); setQrOpen(true); }}>打开产品</button>) : item.link && item.link !== "#" ? (<a className="vibe-btn-visit" href={item.link} target="_blank" rel="noreferrer">打开产品</a>) : (<button type="button" className="vibe-btn-visit" onClick={() => setLocalNotice(item)}>打开产品</button>)}</div></div>
             </article>
           ))}
         </div>
@@ -1411,7 +1546,7 @@ function VibeSection() {
                   <div className="vibe-case__stack">{project.stack.map((s) => <span key={s}>{s}</span>)}</div>
                 </div>
                 <div className="vibe-case__actions vibe-detail-motion">
-                  {project.wechat ? (<button type="button" className="vibe-btn-visit" onClick={() => { setDetailOpen(false); setQrOpen(true); }}>打开产品</button>) : project.link && project.link !== "#" ? (<a className="vibe-btn-visit" href={project.link} target="_blank" rel="noreferrer">打开产品</a>) : (<button type="button" className="vibe-btn-visit" onClick={() => alert("本地应用，请联系作者体验")}>打开产品</button>)}
+                  {project.wechat ? (<button type="button" className="vibe-btn-visit" onClick={() => { setDetailOpen(false); setQrOpen(true); }}>打开产品</button>) : project.link && project.link !== "#" ? (<a className="vibe-btn-visit" href={project.link} target="_blank" rel="noreferrer">打开产品</a>) : (<button type="button" className="vibe-btn-visit" onClick={() => setLocalNotice(project)}>打开产品</button>)}
                   <button type="button" className="vibe-btn-close" onClick={() => setDetailOpen(false)}>关闭</button>
                 </div>
               </aside>
@@ -1425,6 +1560,25 @@ function VibeSection() {
             <button type="button" className="wechat-qr-close" onClick={() => setQrOpen(false)}>CLOSE</button>
             <img src={project.wechat.qr} alt={`${project.title} 小程序码`} />
             <p>{project.wechat.hint}</p>
+          </div>
+        </div>
+      )}
+      {localNotice && (
+        <div className="local-app-overlay" role="dialog" aria-modal="true" aria-labelledby="local-app-title" onClick={(event) => { if (event.target === event.currentTarget) setLocalNotice(null); }}>
+          <div className="local-app-modal">
+            <button type="button" className="local-app-modal__close" aria-label="关闭" onClick={() => setLocalNotice(null)}><X size={18} /></button>
+            <div className="local-app-modal__signal"><AppWindow size={28} strokeWidth={1.6} /><i /></div>
+            <small>LOCAL BUILD / PRIVATE PREVIEW</small>
+            <h3 id="local-app-title">这是一款本地运行的作品</h3>
+            <p><strong>{localNotice.title}</strong> 暂未开放公网体验。欢迎通过右上角「合作与交流」联系我，我会为你提供现场演示或体验版本。</p>
+            <div className="local-app-modal__meta">
+              <span><CircleGauge size={15} />完整交互演示</span>
+              <span><MessageCircle size={15} />联系作者体验</span>
+            </div>
+            <div className="local-app-modal__actions">
+              <button type="button" onClick={() => setLocalNotice(null)}>稍后再看</button>
+              <a href="mailto:zen92@foxmail.com?subject=作品体验咨询">联系作者 <ArrowUpRight size={15} /></a>
+            </div>
           </div>
         </div>
       )}

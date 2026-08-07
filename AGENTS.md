@@ -10,9 +10,12 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 ## Durable design decisions
 
-- The five supplied MP4 files are the only full-screen background imagery. Each video bridges one adjacent pair of the six portfolio chapters and is scrubbed by scroll plus subtle pointer movement.
+- The five supplied MP4 files are offline source masters only. Production uses five 240-image WebP frame sequences (1200 images total); vertical scroll maps directly to frame index and no MP4 is loaded by the cinematic background.
 - Keep a strong four-edge cinematic vignette and tactile grain so video stays atmospheric behind the content.
 - Use the selected film-title layout: vertical navigation at left, restrained chapter index at lower left, compact content credits at lower right, and generous empty space.
 - Do not place a portrait in the background or page content. Reserve only a small top-right hanging origin for a future employee-badge card with a drop-and-bounce entrance.
 - Keep content editorial and sparse. Avoid dashboard grids, cyberpunk HUD styling, neon, dense borders, and card stacks.
 - Narrative thread uses smooth cubic arcs through each chapter content edge (restrained hairline + soft gold draw, small dock dots only). No card hover halos. Document height hard-locked to 6×100svh so page 06 cannot overscroll.
+- Project covers use three equal-width cards with a fixed media stage: keep the complete cover visible and fill unused space with a blurred bleed of the same image, never black letterboxing.
+- Project case studies must feel intentionally different by product type (mobile narrative, B-end dashboard logic, website editorial flow) and use real icon-library visuals to reduce text density.
+- Local-only Vibe Coding projects use an in-system glass modal for contact and experience guidance; never use the browser's native alert dialog.
