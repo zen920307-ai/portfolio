@@ -20,7 +20,7 @@ const resetRope = (paths, x = 0, y = 0) => {
   paths.forEach(({ node, side }) => node?.setAttribute("d", getRopePath(side, x, y)));
 };
 
-export function ProfileBadge() {
+export function ProfileBadge({ hidden = false }) {
   const [open, setOpen] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const rootRef = useRef(null);
@@ -182,7 +182,7 @@ export function ProfileBadge() {
   };
 
   return (
-    <div className={`identity-badge ${open ? "is-open" : ""}`} ref={rootRef} aria-label="唐启东身份工牌">
+    <div className={`identity-badge ${open ? "is-open" : ""}${hidden ? " is-hidden" : ""}`} ref={rootRef} aria-label="唐启东身份工牌">
       <BorderGlow
         className="identity-badge__trigger-shell"
         edgeSensitivity={18}

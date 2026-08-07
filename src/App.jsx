@@ -639,12 +639,20 @@ function CinematicBackdrop() {
  * source MP4 files are offline masters and never participate at runtime.
  */
 
-function Navigation({ activeChapter, onNavigate }) {
+function Navigation({ activeChapter, onNavigate, onMenuChange }) {
   const [open, setOpen] = useState(false);
 
   const handleNavigate = (id) => {
     onNavigate(id);
     setOpen(false);
+    onMenuChange?.(false);
+  };
+
+  const toggleMenu = () => {
+    setOpen((value) => {
+      onMenuChange?.(!value);
+      return !value;
+    });
   };
 
   return (
@@ -655,7 +663,7 @@ function Navigation({ activeChapter, onNavigate }) {
         aria-expanded={open}
         aria-controls="nav-stack"
         aria-label={open ? "关闭导航" : "打开导航"}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleMenu}
       >
         <i /><i /><i />
       </button>
@@ -1176,6 +1184,7 @@ function SystemSection() {
               <span>{module.index}</span><small>{module.caption}</small><h3>{module.title}</h3><p>{module.description}</p>
               <button type="button" onClick={() => setPreview(module)}>PREVIEW MODULE</button>
             </div>
+            <p className="system-screen-tabs__hint" aria-hidden="true">横向滑动切换模块 <span>→</span></p>
             <div className="system-screen-tabs" role="tablist" aria-label="万应设计系统示例">
               {systemModules.map((item, index) => <button type="button" role="tab" aria-selected={active === index} className={active === index ? "is-active" : ""} key={item.id} onClick={() => setActive(index)}><span>{item.index}</span><strong>{item.tabEn}</strong><div className="system-screen-tabs__sub"><small>{item.tabLabel}</small><i>{item.caption}</i></div></button>)}
             </div>
@@ -1767,6 +1776,7 @@ function VibeSection() {
 
 export function App() {
   const [activeChapter, setActiveChapter] = useState(0);
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const { progress: frameProgress, ready: framesReady, error: frameError, retry: retryFrames } = useFrameBootloader();
   const [loaderVisible, setLoaderVisible] = useState(true);
   const shellRef = useRef(null);
@@ -1955,10 +1965,10 @@ export function App() {
       {framesReady && <CinematicBackdrop />}
       {loaderVisible && <LoadingScreen progress={frameProgress} ready={framesReady} error={frameError} onRetry={retryFrames} />}
       <NarrativeThread activeChapter={activeChapter} />
-      <Navigation activeChapter={activeChapter} onNavigate={navigate} />
+      <Navigation activeChapter={activeChapter} onNavigate={navigate} onMenuChange={setNavigationOpen} />
       <ChapterIndex index={activeChapter} />
       <GuideLine activeChapter={activeChapter} />
-      <ProfileBadge />
+      <ProfileBadge hidden={navigationOpen} />
       <main>
         <AboutSection />
         <ExperienceSection />
