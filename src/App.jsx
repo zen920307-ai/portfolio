@@ -97,6 +97,19 @@ function useFrameBootloader() {
 }
 
 function LoadingScreen({ progress, ready, error, onRetry }) {
+  const loadingNotes = [
+    "正在把 1,200 帧电影感装进浏览器…",
+    "正在校准 UI、系统与代码的坐标…",
+    "设计工作台已就位，马上打开实验室。",
+  ];
+  const [noteIndex, setNoteIndex] = useState(0);
+
+  useEffect(() => {
+    if (ready || error) return undefined;
+    const timer = window.setInterval(() => setNoteIndex((index) => (index + 1) % loadingNotes.length), 2200);
+    return () => window.clearInterval(timer);
+  }, [ready, error, loadingNotes.length]);
+
   return (
     <section className={ready ? "lab-loader is-leaving" : "lab-loader"} aria-live="polite" aria-label="正在加载设计实验室">
       <div className="lab-loader__backdrop" />
@@ -104,14 +117,15 @@ function LoadingScreen({ progress, ready, error, onRetry }) {
       <div className="lab-loader__mark" aria-hidden="true"><i /><i /><i /></div>
       <div className="lab-loader__content">
         <p className="lab-loader__eyebrow">TANG QIDONG / DESIGN LAB</p>
-        <h1>正在进入拯的设计实验室，请稍后...</h1>
+        <h1>正在给灵感通电，<br />请稍等片刻。</h1>
         <div className="lab-loader__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}>
           <span style={{ "--loader-progress": `${progress}%` }} />
         </div>
         <div className="lab-loader__status">
-          <span>{error ? "帧序列加载遇到网络波动" : `PREPARING CINEMATIC FRAMES / ${String(progress).padStart(3, "0")}%`}</span>
-          <small>{error ? <button type="button" onClick={onRetry}>重新加载</button> : "1200 FRAMES · LOCAL CACHE ENABLED"}</small>
+          <span className="lab-loader__note-cycle">{error ? "网络有一点迟疑，点击后继续前进。" : loadingNotes[noteIndex]}</span>
+          <small>{error ? <button type="button" onClick={onRetry}>重新加载</button> : <><b>{String(progress).padStart(3, "0")}%</b> / 1200 FRAMES</>}</small>
         </div>
+        <div className="lab-loader__pulse-row" aria-hidden="true"><i /><i /><i /><i /><i /></div>
       </div>
       <p className="lab-loader__note">FIRST VISIT / A COMPLETE SCENE BEFORE ENTRY</p>
     </section>
