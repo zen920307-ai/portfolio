@@ -1491,7 +1491,7 @@ main { position: relative; }
 /* Profile overlay — single-column magazine layout with breathing space */
 .profile-overlay {
   position: fixed; z-index: 55; inset: 0;
-  background: rgba(7,7,7,.55);
+  background: rgba(7,7,7,.35);
   backdrop-filter: blur(42px) saturate(1.4);
   -webkit-backdrop-filter: blur(42px) saturate(1.4);
   overflow-y: auto;
@@ -5349,4 +5349,54 @@ body:has([role="dialog"]) .cinematic-loading-notice { visibility: hidden; }
   .local-app-modal__close {
     top: max(19px, calc(env(safe-area-inset-top) + 9px)) !important;
   }
+}
+
+/* Mobile prelude: keep the five-chapter preview and its detail card inside a
+   single viewport, while the contact ticket remains usable above the loader. */
+@media (max-width: 760px) {
+  body:has(.lab-loader:not(.is-leaving)) .identity-badge {
+    z-index: 140;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  body:has(.lab-loader:not(.is-leaving)) .chapter-nav::after { display: none; }
+
+  .prelude-humor-float {
+    top: max(94px, calc(env(safe-area-inset-top) + 84px));
+    right: 20px;
+    bottom: auto;
+    left: 20px;
+    max-width: none;
+    text-align: center;
+    transform: none;
+  }
+  .prelude-humor-float strong { font-size: 8px; }
+  .prelude-humor-float span,
+  .prelude-humor-float em { font-size: 10px; line-height: 1.35; }
+
+  .prelude-rail {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+  }
+  .prelude-rail__divider { display: none; }
+  .prelude-rail__item { min-width: 0; padding: 6px 1px; gap: 3px; }
+  .prelude-rail__item b { font-size: 7px; letter-spacing: .04em; }
+  .prelude-rail__item span { font-size: 10px; line-height: 1.15; white-space: nowrap; }
+
+  .prelude-hover-card {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    left: 12px;
+    width: auto;
+    max-height: min(42svh, 350px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: none;
+  }
+  .prelude-shell { transform: none; }
+  .prelude:has(.prelude-hover-card) .prelude-humor-float,
+  .prelude:has(.prelude-hover-card) .prelude-logos { opacity: 0; }
 }
