@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { gsap } from "gsap";
 import {
-  AppWindow, ArrowUpRight, Building2, ChartNoAxesCombined, CircleGauge,
-  Compass, Database, Film, Layers3, LayoutDashboard, MessageCircle,
-  MousePointerClick, Network, Route, Search, ShieldCheck, Smartphone,
-  Sparkles, Target, UsersRound, Workflow,
+  AppWindow, ArrowUpRight, Box, Building2, ChartNoAxesCombined, CircleGauge,
+  CodeXml, Command, Compass, Cpu, Database, FileText, Film, Layers3,
+  LayoutDashboard, MessageCircle, MousePointerClick, Network, Orbit, Palette,
+  PenTool, Route, Search, ShieldCheck, Smartphone, Sparkles, Target, UsersRound,
+  Wand2, Wind, Workflow, Zap,
 } from "lucide-react";
 import { career, chapters, profile, projects, systemModules, vibeProjects, works } from "./data.js";
 import { ProfileBadge } from "./ProfileBadge.jsx";
 import DriftWall from "./components/DriftWall.jsx";
 import TiltedCard from "./components/TiltedCard.jsx";
+import StrokeText from "./components/StrokeText.jsx";
+import { LogoLoop } from "./components/LogoLoop.jsx";
+import TextType from "./components/TextType.jsx";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
@@ -39,6 +43,9 @@ const emitBackgroundProgress = (value) => {
   backgroundProgressListeners.forEach((listener) => listener(value));
 };
 
+const firstSegmentReadyListeners = new Set();
+const emitFirstSegmentReady = () => firstSegmentReadyListeners.forEach((listener) => listener());
+
 async function cacheCriticalFrames() {
   if (criticalFramePromise) return criticalFramePromise;
 
@@ -46,6 +53,10 @@ async function cacheCriticalFrames() {
     if (!("caches" in window)) throw new Error("CACHE_UNAVAILABLE");
     const cache = await caches.open(FRAME_CACHE_NAME);
     let completed = 0;
+    let enterGateSignaled = false;
+    // All three boot sequences are cached before ENTER unlocks — the loading
+    // page now carries enough content for visitors to wait out the download.
+    const enterGateCount = CRITICAL_FRAME_URLS.length;
     const update = () => emitFrameProgress(Math.round((completed / CRITICAL_FRAME_URLS.length) * 100));
     const queue = [...CRITICAL_FRAME_URLS];
     const worker = async () => {
@@ -67,11 +78,16 @@ async function cacheCriticalFrames() {
         }
         completed += 1;
         update();
+        if (!enterGateSignaled && completed >= enterGateCount) {
+          enterGateSignaled = true;
+          emitFirstSegmentReady();
+        }
       }
     };
 
     emitFrameProgress(0);
     await Promise.all(Array.from({ length: 6 }, worker));
+    if (!enterGateSignaled) emitFirstSegmentReady();
     emitFrameProgress(100);
   })().catch((error) => {
     criticalFramePromise = null;
@@ -107,43 +123,56 @@ function warmFrameWindow(segment, start = 0, count = 96, onProgress) {
 
 function useFrameBootloader() {
   const [progress, setProgress] = useState(0);
+  const [canEnter, setCanEnter] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
   const [backgroundReady, setBackgroundReady] = useState(false);
+  const backgroundStartedRef = useRef(false);
+
+  const startBackgroundWarm = useCallback(() => {
+    if (backgroundStartedRef.current) return;
+    backgroundStartedRef.current = true;
+    let completed = 0;
+    const total = BACKGROUND_SEGMENT_COUNT * FRAME_COUNTS[0];
+    const reportBackgroundProgress = () => {
+      completed += 1;
+      emitBackgroundProgress(Math.min(100, Math.round((completed / total) * 100)));
+    };
+    Promise.all([
+      warmFrameWindow(3, 0, FRAME_COUNTS[3], reportBackgroundProgress),
+      warmFrameWindow(4, 0, FRAME_COUNTS[4], reportBackgroundProgress),
+    ]).then(() => {
+      emitBackgroundProgress(100);
+      setBackgroundReady(true);
+    });
+  }, []);
+
   const run = useCallback(() => {
     setError(false);
+    setCanEnter(false);
+    setReady(false);
     emitBackgroundProgress(0);
     setBackgroundReady(false);
+    backgroundStartedRef.current = false;
     cacheCriticalFrames().then(() => {
       setReady(true);
-      let completed = 0;
-      const total = BACKGROUND_SEGMENT_COUNT * FRAME_COUNTS[0];
-      const reportBackgroundProgress = () => {
-        completed += 1;
-        emitBackgroundProgress(Math.min(100, Math.round((completed / total) * 100)));
-      };
-      Promise.all([
-        warmFrameWindow(3, 0, FRAME_COUNTS[3], reportBackgroundProgress),
-        warmFrameWindow(4, 0, FRAME_COUNTS[4], reportBackgroundProgress),
-      ]).then(() => {
-        emitBackgroundProgress(100);
-        setBackgroundReady(true);
-      });
+      setCanEnter(true);
+      startBackgroundWarm();
     }).catch(() => setError(true));
-  }, []);
+  }, [startBackgroundWarm]);
 
   useEffect(() => {
     framePreloadListeners.add(setProgress);
+    const onFirst = () => setCanEnter(true);
+    firstSegmentReadyListeners.add(onFirst);
     run();
-    return () => framePreloadListeners.delete(setProgress);
+    return () => {
+      framePreloadListeners.delete(setProgress);
+      firstSegmentReadyListeners.delete(onFirst);
+    };
   }, [run]);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("is-loading", !ready);
-    return () => document.documentElement.classList.remove("is-loading");
-  }, [ready]);
-
-  return { progress, ready, error, retry: run, backgroundReady };
+  return { progress, canEnter, ready, error, retry: run, backgroundReady, startBackgroundWarm };
 }
 
 function CinematicLoadingNotice() {
@@ -160,44 +189,380 @@ function CinematicLoadingNotice() {
   );
 }
 
-function LoadingScreen({ progress, ready, error, onRetry }) {
-  const loadingNotes = [
-    "正在冲洗开场三秒，故事马上开机。",
-    "把重资源留到后台，先让你进来逛。",
-    "灵感已通电，请系好创意安全带。",
-  ];
-  const [noteIndex, setNoteIndex] = useState(0);
+const PRELUDE_CHAPTERS = [
+  {
+    id: "about",
+    en: "ABOUT",
+    label: "个人概览",
+    phase: "正在准备序章",
+    card: {
+      title: "个人概览",
+      en: "ABOUT",
+      lead: "认识我是谁，以及我如何看待设计。",
+      stats: [
+        ["10+", "年产品与体验设计"],
+        ["B 端", "企业级复杂系统为主"],
+        ["AI", "设计到可运行原型"],
+      ],
+      body: "从界面执行一路走到产品判断与设计系统。这里会交代角色、立场，以及我为什么这样做事。",
+    },
+  },
+  {
+    id: "experience",
+    en: "EXPERIENCE",
+    label: "职业经历",
+    phase: "正在展开职业轨迹",
+    card: {
+      title: "职业经历",
+      en: "EXPERIENCE",
+      lead: "十年角色如何一步步变重。",
+      stats: [
+        ["2015", "进入设计领域"],
+        ["4 段", "关键阶段演进"],
+        ["系统", "从页面到业务闭环"],
+      ],
+      body: "UI → 产品界面 → 复杂 B 端与数据平台 → AI 与独立构建。重点不是履历清单，而是判断力如何形成。",
+    },
+  },
+  {
+    id: "projects",
+    en: "PROJECTS",
+    label: "代表项目",
+    phase: "正在整理项目现场",
+    card: {
+      title: "代表项目",
+      en: "PROJECTS",
+      lead: "30–40+ 项目里，只留下值得讲的。",
+      stats: [
+        ["移动端", "剧本杀社交体验"],
+        ["B 端", "园区运营与数据协同"],
+        ["官网", "低代码产品叙事"],
+      ],
+      body: "每个案例都按问题定义、系统组织、关键体验与落地结果来写，而不是只贴一堆界面图。",
+    },
+  },
+  {
+    id: "visual",
+    en: "VISUAL",
+    label: "视觉设计",
+    phase: "正在展开视觉档案",
+    card: {
+      title: "视觉设计",
+      en: "VISUAL",
+      lead: "界面之外，继续构建设计语言。",
+      stats: [
+        ["品牌", "识别与叙事"],
+        ["平面", "海报与版式实验"],
+        ["动态", "图形与节奏"],
+      ],
+      body: "证明我不只处理复杂产品逻辑，也能驾驭更开放的视觉表达与审美判断。",
+    },
+  },
+  {
+    id: "ai",
+    en: "AI × DESIGN",
+    label: "AI 创作",
+    phase: "正在启动创作实验室",
+    card: {
+      title: "AI 创作",
+      en: "AI × DESIGN",
+      lead: "把设计判断写成能跑的产品。",
+      stats: [
+        ["小程序", "亲子成长记录"],
+        ["工具", "声纹与创作工作台"],
+        ["方法", "设计 × 提示词 × 前端"],
+      ],
+      body: "这里不是概念稿，而是做过、跑过、持续迭代的个人产品，展示从想法到实现的完整距离。",
+    },
+  },
+];
+
+const PRELUDE_TITLES = [
+  "ZEN · DESIGN",
+  "PRODUCT · UX",
+  "DESIGN · SYSTEM",
+  "AI · BUILDER",
+  "VISUAL · LAB",
+];
+
+const PRELUDE_PRINCIPLES = [
+  { code: "01", title: "先减少，再增加", zh: "先减少理解成本，再增加视觉表达。" },
+  { code: "02", title: "先系统，再像素", zh: "先解决系统问题，再解决像素问题。" },
+  { code: "03", title: "设计要落地", zh: "一个没落地的方案，还没有完成。" },
+  { code: "04", title: "清楚比聪明重要", zh: "清楚，比聪明更难，也更重要。" },
+  { code: "05", title: "扩展判断力", zh: "AI 扩展的是判断，不是替代判断。" },
+];
+
+function preludeChapterIndex(progress) {
+  return clamp(Math.floor((progress / 100) * PRELUDE_CHAPTERS.length), 0, PRELUDE_CHAPTERS.length - 1);
+}
+
+const TECH_LOGOS = [
+  { node: <><Sparkles />React</>, title: "React" },
+  { node: <><Layers3 />Next.js</>, title: "Next.js" },
+  { node: <><CodeXml />TypeScript</>, title: "TypeScript" },
+  { node: <><Wind />Tailwind CSS</>, title: "Tailwind CSS" },
+  { node: <><Zap />Vite</>, title: "Vite" },
+  { node: <><Command />GSAP</>, title: "GSAP" },
+  { node: <><Box />Three.js</>, title: "Three.js" },
+  { node: <><Cpu />AI</>, title: "AI" },
+  { node: <><Wand2 />Vibe Coding</>, title: "Vibe Coding" },
+  { node: <><Palette />Figma</>, title: "Figma" },
+  { node: <><PenTool />Sketch</>, title: "Sketch" },
+  { node: <><Orbit />Blender</>, title: "Blender" },
+  { node: <><FileText />PRD</>, title: "PRD" },
+];
+
+const HUMOR_SLOTS = [
+  { start: 0, en: "STILL PUTTING THINGS TOGETHER.", zh: "正在把一些画面拼起来。", extra: "顺便说一句，这个网站比普通作品集稍微重那么一点。" },
+  { start: 15, en: "YES, THERE ARE A LOT OF FRAMES.", zh: "是的，我确实塞了不少视频帧。", extra: "做设计十多年之后，我还是没学会「随便一点」。" },
+  { start: 30, en: "SINCE YOU'RE HERE...", zh: "既然还要等一会儿，不如先认识我一点。", extra: "10+ 年产品与体验设计，做过 30–40+ 个项目。" },
+  { start: 45, en: "I DESIGN MORE THAN SCREENS.", zh: "界面只是最后被看见的部分。", extra: "复杂业务、流程、设计系统，以及怎么把它们讲清楚，才是我更常处理的东西。" },
+  { start: 60, en: "YES, IT'S STILL LOADING.", zh: "没错，它居然还在加载。", extra: "有些视觉体验，确实行李比较多。" },
+  { start: 75, en: "I BUILD THINGS, TOO.", zh: "这几年，我开始不满足于只把产品画出来。", extra: "AI、Vibe Coding，以及把一个想法真正做成能运行的东西。" },
+  { start: 90, en: "YOU'VE BEEN VERY PATIENT.", zh: "能看到这里，我已经欠你一杯咖啡了。", extra: "如果你赶时间，可以直接进入，剩下的画面会继续准备。" },
+  { start: 105, en: "ALMOST READY.", zh: "最后几帧正在赶来的路上。", extra: "接下来看到的，是我过去十多年做过的一些事，以及最近正在尝试的新东西。" },
+  { start: 120, en: "WELCOME TO ZEN · DESIGN.", zh: "欢迎来到 ZEN · DESIGN。", extra: "" },
+];
+
+const LOADING_PHASES = [
+  { min: 0, en: "PREPARING INTRO", zh: "正在准备序章" },
+  { min: 20, en: "LOADING PROJECT STORIES", zh: "正在整理项目现场" },
+  { min: 40, en: "BUILDING VISUAL ARCHIVE", zh: "正在展开视觉档案" },
+  { min: 60, en: "WARMING UP THE LAB", zh: "正在启动 AI 实验室" },
+  { min: 85, en: "FINAL TOUCHES", zh: "最后一笔" },
+];
+
+function loadingPhaseFor(progress) {
+  let phase = LOADING_PHASES[0];
+  for (const item of LOADING_PHASES) {
+    if (progress >= item.min) phase = item;
+  }
+  return phase;
+}
+
+function LoadingScreen({ progress, canEnter, ready, error, backgroundReady, onRetry, onEnter }) {
+  const [leaving, setLeaving] = useState(false);
+  const [waitedMs, setWaitedMs] = useState(0);
+  const [principle, setPrinciple] = useState(null);
+  const [titleIndex, setTitleIndex] = useState(0);
+  const [railHover, setRailHover] = useState(null);
+  const railLeaveTimerRef = useRef(0);
+  const enteredOnceRef = useRef(false);
+  const chapterIdx = preludeChapterIndex(progress);
+  const loadPhase = error
+    ? { en: "CONNECTION HESITATED", zh: "连接犹豫了一下" }
+    : loadingPhaseFor(progress);
+  const titleText = PRELUDE_TITLES[titleIndex % PRELUDE_TITLES.length];
+  const hoveredChapter = railHover
+    ? PRELUDE_CHAPTERS.find((c) => c.id === railHover)
+    : null;
 
   useEffect(() => {
-    if (ready || error) return undefined;
-    const timer = window.setInterval(() => setNoteIndex((index) => (index + 1) % loadingNotes.length), 2200);
+    const started = performance.now();
+    const timer = window.setInterval(() => setWaitedMs(performance.now() - started), 500);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(railLeaveTimerRef.current);
+    };
+  }, []);
+
+  // Rotate identity titles; remount StrokeText so draw animation replays each cycle.
+  useEffect(() => {
+    if (error) return undefined;
+    const timer = window.setInterval(() => {
+      setTitleIndex((i) => (i + 1) % PRELUDE_TITLES.length);
+    }, 4200);
     return () => window.clearInterval(timer);
-  }, [ready, error, loadingNotes.length]);
+  }, [error]);
+
+  const enter = useCallback(() => {
+    if (leaving || enteredOnceRef.current) return;
+    enteredOnceRef.current = true;
+    setLeaving(true);
+    onEnter?.();
+  }, [leaving, onEnter]);
+
+  const openRailCard = (id) => {
+    window.clearTimeout(railLeaveTimerRef.current);
+    setRailHover(id);
+  };
+  const scheduleCloseRailCard = () => {
+    window.clearTimeout(railLeaveTimerRef.current);
+    railLeaveTimerRef.current = window.setTimeout(() => setRailHover(null), 160);
+  };
+
+  let humor = HUMOR_SLOTS[0];
+  for (const slot of HUMOR_SLOTS) {
+    if (waitedMs / 1000 >= slot.start) humor = slot;
+  }
 
   return (
-    <section className={ready ? "lab-loader is-leaving" : "lab-loader"} aria-live="polite" aria-label="正在加载设计实验室">
+    <section
+      className={`lab-loader prelude${leaving ? " is-leaving" : ""}`}
+      aria-live="polite"
+      aria-label="序章"
+    >
       <div className="lab-loader__backdrop" />
       <div className="lab-loader__grain" />
-      <div className="lab-loader__mark" aria-hidden="true"><i /><i /><i /></div>
-      <div className="lab-loader__content">
-        <div className="lab-loader__falling-ui" aria-hidden="true">
-          <i style={{ "--drop-x": "-178px", "--rebound": "-82px", "--drop-delay": "-.8s", "--drop-duration": "5.9s" }}><Layers3 /></i>
-          <i style={{ "--drop-x": "-58px", "--rebound": "-54px", "--drop-delay": "-3.1s", "--drop-duration": "6.8s" }}><MousePointerClick /></i>
-          <i style={{ "--drop-x": "62px", "--rebound": "-108px", "--drop-delay": "-1.9s", "--drop-duration": "6.3s" }}><AppWindow /></i>
-          <i style={{ "--drop-x": "180px", "--rebound": "-66px", "--drop-delay": "-4.7s", "--drop-duration": "7.2s" }}><Sparkles /></i>
+
+      <button
+        type="button"
+        className="prelude-mark"
+        onClick={() => setPrinciple(PRELUDE_PRINCIPLES[Math.floor(Math.random() * PRELUDE_PRINCIPLES.length)])}
+        aria-label="点击查看一条设计原则"
+      >
+        <i /><i /><i />
+        <span>ZEN</span>
+      </button>
+
+      {humor && !error && (
+        <div className="prelude-humor-float" role="status" key={humor.en}>
+          <strong>{humor.en}</strong>
+          <span>{humor.zh}</span>
+          {humor.extra && <em>{humor.extra}</em>}
         </div>
-        <p className="lab-loader__eyebrow">TANG QIDONG / DESIGN LAB</p>
-        <h1>开场已就位，<br />马上进入设计现场。</h1>
-        <div className="lab-loader__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}>
-          <span style={{ "--loader-progress": `${progress}%` }} />
+      )}
+
+      <div className="prelude-shell">
+        <p className="prelude-eyebrow">PRELUDE / DESIGN LAB</p>
+
+        <div className="prelude-title-wrap">
+          <StrokeText
+            key={titleText}
+            className="prelude-title"
+            text={titleText}
+            strokeColor="#f3e91a"
+            fillColor="#f7f5ed"
+            strokeWidth={1.35}
+            drawDuration={1.35}
+            fillDelay={0.15}
+            stagger={0.04}
+            ease="power2.out"
+            trigger="mount"
+            fillMode="wipe"
+            fontSize={88}
+            fontWeight={800}
+            letterSpacing={-3}
+          />
         </div>
-        <div className="lab-loader__status">
-          <span className="lab-loader__note-cycle">{error ? "网络有一点迟疑，点击后继续前进。" : loadingNotes[noteIndex]}</span>
-          <small>{error ? <button type="button" onClick={onRetry}>重新加载</button> : <><b>{String(progress).padStart(3, "0")}%</b> / FIRST VIEW</>}</small>
+
+        <div className="prelude-loading-block">
+          <p className="prelude-loading-label">LOADING EXPERIENCE</p>
+          <div className="prelude-meter" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+            <span style={{ width: `${progress}%` }} />
+          </div>
+          <div className="prelude-loading-meta" key={loadPhase.en}>
+            <strong className="prelude-loading-en">{loadPhase.en}</strong>
+            <div className="prelude-loading-meta-right">
+              <span className="prelude-loading-zh">{loadPhase.zh}</span>
+              <small className="prelude-loading-pct">{String(progress).padStart(3, "0")}%</small>
+            </div>
+          </div>
         </div>
-        <div className="lab-loader__pulse-row" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+
+        {principle && (
+          <div className="prelude-principle" role="status">
+            <span>{principle.code} · {principle.title}</span>
+            <p>{principle.zh}</p>
+          </div>
+        )}
+
+        <div className="prelude-actions">
+          {error ? (
+            <button type="button" className="prelude-btn prelude-btn--primary" onClick={onRetry}>重新加载</button>
+          ) : (
+            <button
+              type="button"
+              className="prelude-btn prelude-btn--primary"
+              disabled={!canEnter}
+              onClick={enter}
+            >
+              {canEnter ? "ENTER NOW / 进入网站" : "准备中 / 请稍候"}
+            </button>
+          )}
+          {canEnter && !backgroundReady && (
+            <p className="prelude-actions__hint" role="status">
+              进入网站 · 剩余资源后台加载
+            </p>
+          )}
+        </div>
+
+        <div
+          className="prelude-rail-zone"
+          onMouseLeave={scheduleCloseRailCard}
+        >
+          <p className="prelude-rail-hint">等着也是等着，不如先了解一下我？</p>
+          <nav className="prelude-rail" aria-label="站点章节预告">
+            {PRELUDE_CHAPTERS.map((chapter, index) => (
+              <Fragment key={chapter.id}>
+                {index > 0 && <i className="prelude-rail__divider" aria-hidden="true" />}
+                <button
+                  type="button"
+                  className={`prelude-rail__item${index <= chapterIdx ? " is-lit" : ""}${railHover === chapter.id ? " is-hover" : ""}`}
+                  onMouseEnter={() => openRailCard(chapter.id)}
+                  onFocus={() => openRailCard(chapter.id)}
+                  onBlur={scheduleCloseRailCard}
+                >
+                  <b>{chapter.en}</b>
+                  <span>{chapter.label}</span>
+                </button>
+              </Fragment>
+            ))}
+          </nav>
+
+          {hoveredChapter && (
+            <aside
+              className="prelude-hover-card"
+              role="tooltip"
+              onMouseEnter={() => openRailCard(hoveredChapter.id)}
+            >
+              {hoveredChapter.id === "about" && (
+                <TextType
+                  className="prelude-hover-card__name"
+                  text={["唐启东", "TANG · QIDONG"]}
+                  typingSpeed={90}
+                  pauseDuration={1800}
+                  deletingSpeed={45}
+                  loop
+                  showCursor
+                  cursorCharacter="|"
+                  textColors={["#f7f5ed", "#f7f5ed"]}
+                  style={{
+                    fontSize: "clamp(28px, 3vw, 40px)",
+                    fontWeight: 800,
+                    letterSpacing: "0.02em",
+                  }}
+                />
+              )}
+              <header>
+                <small>{hoveredChapter.card.en}</small>
+                <strong>{hoveredChapter.card.title}</strong>
+                <p>{hoveredChapter.card.lead}</p>
+              </header>
+              <ul>
+                {hoveredChapter.card.stats.map(([k, v]) => (
+                  <li key={k}><b>{k}</b><span>{v}</span></li>
+                ))}
+              </ul>
+              <p className="prelude-hover-card__body">{hoveredChapter.card.body}</p>
+            </aside>
+          )}
+        </div>
       </div>
-      <p className="lab-loader__note">FIRST VIEW READY · THE REST ARRIVES AS YOU EXPLORE</p>
+
+      <div className="prelude-logos">
+        <LogoLoop
+          logos={TECH_LOGOS}
+          speed={36}
+          direction="left"
+          logoHeight={24}
+          gap={30}
+          fadeOut
+          fadeOutColor="#080807"
+          ariaLabel="技术栈"
+        />
+      </div>
     </section>
   );
 }
@@ -997,6 +1362,38 @@ const FOCUS_ICON = {
 };
 const focusIcon = (f) => FOCUS_ICON[f] || "point";
 
+function PoNow({ now, signal, tags }) {
+  const lineRef = useRef(null);
+
+  useEffect(() => {
+    const el = lineRef.current;
+    if (!el) return undefined;
+    const fit = () => {
+      let size = 15;
+      el.style.fontSize = `${size}px`;
+      while (el.scrollWidth > el.clientWidth && size > 11.5) {
+        size -= 0.25;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [now]);
+
+  return (
+    <div className="po-now-card">
+      <span className="po-now__signal"><i />{signal}</span>
+      <p className="po-now" ref={lineRef}>{now}</p>
+      <ul className="po-now__tags">
+        {tags.map((tag) => (
+          <li key={tag.key}><b>{tag.key}</b><span>{tag.value}</span></li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function ProfileOverlay({ onClose }) {
   const rootRef = useRef(null);
   useCloseOnPortfolioNavigate(onClose);
@@ -1008,7 +1405,7 @@ function ProfileOverlay({ onClose }) {
     const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
     timeline
       .fromTo(rootRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 })
-      .fromTo(rootRef.current.querySelectorAll(".pm"), { y: 30, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.65, stagger: 0.07 }, "<0.08");
+      .fromTo(rootRef.current.querySelectorAll(".pm"), { y: 30 }, { y: 0, duration: 0.65, stagger: 0.07 }, "<0.08");
     return () => {
       timeline.kill();
       window.removeEventListener("keydown", closeOnEscape);
@@ -1016,7 +1413,7 @@ function ProfileOverlay({ onClose }) {
     };
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div ref={rootRef} className="profile-overlay" role="dialog" aria-modal="true" aria-label="个人档案" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <FixedClose onClose={onClose} />
       <div className="profile-overlay__inner" onClick={(e) => e.stopPropagation()}>
@@ -1113,10 +1510,11 @@ function ProfileOverlay({ onClose }) {
 
         <section className="po-block pm">
           <header className="po-block__head"><span>07</span><h3>正在关注</h3><small>NOW</small></header>
-          <p className="po-now">{profile.now}</p>
+          <PoNow now={profile.now} signal={profile.nowSignal} tags={profile.nowTags} />
         </section>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -2195,23 +2593,32 @@ export function App() {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const {
     progress: frameProgress,
+    canEnter: framesCanEnter,
     ready: framesReady,
     error: frameError,
     retry: retryFrames,
     backgroundReady,
+    startBackgroundWarm,
   } = useFrameBootloader();
   const [loaderVisible, setLoaderVisible] = useState(true);
+  const [experienceEntered, setExperienceEntered] = useState(false);
   const shellRef = useRef(null);
   // Shared flag so programmatic navigation (nav clicks) can suspend scroll snapping.
   const snapControlRef = useRef({ navigateProgrammatic: false });
   const navigateTimerRef = useRef(0);
   useScrollSnap(6, snapControlRef);
 
+  const enterExperience = useCallback(() => {
+    if (experienceEntered) return;
+    setExperienceEntered(true);
+    startBackgroundWarm();
+    window.setTimeout(() => setLoaderVisible(false), 1250);
+  }, [experienceEntered, startBackgroundWarm]);
+
   useEffect(() => {
-    if (!framesReady) return undefined;
-    const leaveTimer = window.setTimeout(() => setLoaderVisible(false), 720);
-    return () => window.clearTimeout(leaveTimer);
-  }, [framesReady]);
+    document.documentElement.classList.toggle("is-loading", loaderVisible);
+    return () => document.documentElement.classList.remove("is-loading");
+  }, [loaderVisible]);
 
   useEffect(() => {
     let frame = 0;
@@ -2421,15 +2828,25 @@ export function App() {
   };
 
   return (
-    <div ref={shellRef} className="portfolio-shell">
-      {framesReady && <CinematicBackdrop />}
-      {loaderVisible && <LoadingScreen progress={frameProgress} ready={framesReady} error={frameError} onRetry={retryFrames} />}
+    <div ref={shellRef} className={`portfolio-shell${experienceEntered ? " is-entered" : ""}`}>
+      <CinematicBackdrop />
+      {loaderVisible && (
+        <LoadingScreen
+          progress={frameProgress}
+          canEnter={framesCanEnter || framesReady}
+          ready={framesReady}
+          error={frameError}
+          onRetry={retryFrames}
+          onEnter={enterExperience}
+          backgroundReady={backgroundReady}
+        />
+      )}
       <NarrativeThread activeChapter={activeChapter} />
       <Navigation activeChapter={activeChapter} onNavigate={navigate} onMenuChange={setNavigationOpen} />
       <ChapterIndex index={activeChapter} />
       <GuideLine activeChapter={activeChapter} />
       <ProfileBadge hidden={navigationOpen} />
-      {framesReady && !backgroundReady && <CinematicLoadingNotice />}
+      {experienceEntered && !backgroundReady && <CinematicLoadingNotice />}
       <main>
         <AboutSection />
         <ExperienceSection />

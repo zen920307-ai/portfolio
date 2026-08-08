@@ -1,0 +1,28 @@
+.stroke-text {
+  display: block;
+  width: 100%;
+  line-height: 0;
+  text-align: center;
+}
+
+.stroke-text--hover {
+  cursor: pointer;
+}
+
+.stroke-text__svg {
+  display: block;
+  width: 100%;
+  height: var(--stroke-text-height, 160px);
+  margin: 0 auto;
+}
+
+.stroke-text__stroke,
+.stroke-text__fill {
+  user-select: none;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+}
+
+.prelude-title-wrap .stroke-text {
+  width: min(920px, 100%);
+  margin: 0 auto;
+}

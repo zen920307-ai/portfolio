@@ -62,6 +62,12 @@ export const profile = {
     { icon: "rocket", title: "AI Exploration", desc: "持续探索新工具和创造方式" },
   ],
   now: "持续探索 AI × Product Design：通过 Vibe Coding 把个人产品想法快速做成可运行原型，重点是让 AI 进入真实产品工作流，而不只是生成内容。",
+  nowSignal: "NOW TRACKING · AI × PRODUCT DESIGN",
+  nowTags: [
+    { key: "VIBE CODING", value: "想法 → 可运行原型" },
+    { key: "AI 进工作流", value: "而不是只生成内容" },
+    { key: "产品化实践", value: "快速验证与迭代" },
+  ],
   signature: "Product Design Lead × Builder",
 };
 
