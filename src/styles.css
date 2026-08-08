@@ -5351,6 +5351,18 @@ body:has([role="dialog"]) .cinematic-loading-notice { visibility: hidden; }
   }
 }
 
+/* Mobile Page 03: give the live Wanying archive enough vertical room to read. */
+@media (max-width: 760px) {
+  .system-screen-ui__body {
+    grid-template-rows: clamp(360px, 50svh, 430px) auto;
+  }
+  .system-strip-stage,
+  .vertical-strips {
+    height: clamp(360px, 50svh, 430px);
+    min-height: clamp(360px, 50svh, 430px);
+  }
+}
+
 /* Mobile prelude: keep the five-chapter preview and its detail card inside a
    single viewport, while the contact ticket remains usable above the loader. */
 @media (max-width: 760px) {

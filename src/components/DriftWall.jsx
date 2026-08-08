@@ -89,6 +89,18 @@ const DriftWall = ({
   const handleTileOpen = (item) => {
     if (typeof onOpen === 'function') onOpen(item);
   };
+  const pauseWall = (event) => {
+    animationRefs.current.forEach((animation) => animation?.pause());
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const resumeWall = (event) => {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    requestAnimationFrame(() => {
+      animationRefs.current.forEach((animation) => animation?.play());
+    });
+  };
 
   const rootClass = ['drift-wall', className].filter(Boolean).join(' ');
   return (
@@ -104,6 +116,9 @@ const DriftWall = ({
               onMouseLeave={handleTileLeave}
               onFocus={() => handleTileEnter(item)}
               onBlur={handleTileLeave}
+              onPointerDown={pauseWall}
+              onPointerUp={resumeWall}
+              onPointerCancel={resumeWall}
               onClick={() => handleTileOpen(item)}
               aria-label={item.title ?? `作品 ${i + 1}`}
             >

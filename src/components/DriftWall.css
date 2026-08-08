@@ -88,14 +88,21 @@
   user-select: none;
   -webkit-user-drag: none;
 }
-.drift-wall__tile:hover .drift-wall__inner,
 .drift-wall__tile:focus-visible .drift-wall__inner {
   transform: translateY(-3px);
   box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.8);
 }
-.drift-wall__tile:hover img,
 .drift-wall__tile:focus-visible img {
   filter: saturate(1.05);
+}
+@media (hover: hover) and (pointer: fine) {
+  .drift-wall__tile:hover .drift-wall__inner {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.8);
+  }
+  .drift-wall__tile:hover img {
+    filter: saturate(1.05);
+  }
 }
 .drift-wall__tile:focus-visible .drift-wall__inner {
   box-shadow:

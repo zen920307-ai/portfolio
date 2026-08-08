@@ -18,6 +18,31 @@ import TextType from "./components/TextType.jsx";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
+// Normalized subject positions sampled from each sequence. Mobile portraits
+// interpolate between these points so the narrow crop follows the story,
+// while the desktop composition keeps its original centered framing.
+const MOBILE_FOCAL_TRACKS = [
+  [[0, 0.36, 0.48], [60, 0.50, 0.48], [120, 0.50, 0.50], [180, 0.68, 0.50], [239, 0.76, 0.50]],
+  [[0, 0.77, 0.50], [60, 0.70, 0.50], [120, 0.77, 0.48], [180, 0.80, 0.48], [239, 0.84, 0.48]],
+  [[0, 0.84, 0.46], [60, 0.84, 0.46], [120, 0.84, 0.46], [180, 0.50, 0.50], [239, 0.72, 0.48]],
+  [[0, 0.72, 0.50], [60, 0.65, 0.50], [120, 0.72, 0.50], [180, 0.66, 0.50], [239, 0.32, 0.52]],
+  [[0, 0.30, 0.52], [60, 0.32, 0.52], [120, 0.45, 0.52], [180, 0.50, 0.62], [239, 0.50, 0.62]],
+];
+const mobileFocalPoint = (segment, frameIndex) => {
+  const track = MOBILE_FOCAL_TRACKS[segment] || MOBILE_FOCAL_TRACKS[0];
+  const nextIndex = track.findIndex(([frame]) => frame >= frameIndex);
+  if (nextIndex <= 0) {
+    const point = nextIndex === -1 ? track[track.length - 1] : track[0];
+    return { x: point[1], y: point[2] };
+  }
+  const from = track[nextIndex - 1];
+  const to = track[nextIndex];
+  const progress = (frameIndex - from[0]) / Math.max(1, to[0] - from[0]);
+  return {
+    x: from[1] + (to[1] - from[1]) * progress,
+    y: from[2] + (to[2] - from[2]) * progress,
+  };
+};
 const FRAME_CACHE_NAME = "tang-portfolio-frames-v2";
 const framePath = (segment, frameIndex) => (
   `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
@@ -964,11 +989,17 @@ function CinematicBackdrop() {
       const scale = Math.max(canvas.width / bitmap.width, canvas.height / bitmap.height);
       const width = bitmap.width * scale;
       const height = bitmap.height * scale;
+      const focalPoint = window.innerWidth <= 760
+        ? mobileFocalPoint(segment, frameIndex)
+        : { x: 0.5, y: 0.5 };
+      const x = clamp((canvas.width / 2) - (width * focalPoint.x), canvas.width - width, 0);
+      const y = clamp((canvas.height / 2) - (height * focalPoint.y), canvas.height - height, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(bitmap, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+      context.drawImage(bitmap, x, y, width, height);
       canvas.dataset.segment = String(segment + 1);
       canvas.dataset.frame = String(frameIndex + 1).padStart(4, "0");
       canvas.dataset.source = frameSource(segment, frameIndex);
+      canvas.dataset.focal = `${focalPoint.x.toFixed(3)},${focalPoint.y.toFixed(3)}`;
     };
 
     const warmFrame = (segment, frameIndex) => {
@@ -1087,10 +1118,9 @@ function Navigation({ activeChapter, onNavigate, onMenuChange }) {
   };
 
   const toggleMenu = () => {
-    setOpen((value) => {
-      onMenuChange?.(!value);
-      return !value;
-    });
+    const nextOpen = !open;
+    setOpen(nextOpen);
+    onMenuChange?.(nextOpen);
   };
 
   return (
