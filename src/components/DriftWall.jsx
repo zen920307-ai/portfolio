@@ -121,8 +121,6 @@ const DriftWall = ({
             className="drift-wall__col"
             key={`col-${c}`}
             style={{ '--dw-col-w': `${tileWidth}px` }}
-            onMouseEnter={() => animationRefs.current[c]?.pause()}
-            onMouseLeave={() => animationRefs.current[c]?.play()}
           >
             <div
               className="drift-wall__track"

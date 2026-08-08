@@ -52,11 +52,7 @@
   to   { transform: translate3d(0, 0, 0); }
 }
 
-/* 悬停某列时暂停该列，便于看清与点击 */
-.drift-wall__col:hover .drift-wall__track {
-  animation-play-state: paused;
-}
-
+/* Hover styling is visual-only; the column loop keeps running continuously. */
 .drift-wall__tile {
   position: relative;
   display: block;

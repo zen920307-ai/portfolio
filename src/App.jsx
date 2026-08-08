@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { gsap } from "gsap";
 import {
@@ -10,6 +10,7 @@ import {
 import { career, chapters, profile, projects, systemModules, vibeProjects, works } from "./data.js";
 import { ProfileBadge } from "./ProfileBadge.jsx";
 import DriftWall from "./components/DriftWall.jsx";
+import TiltedCard from "./components/TiltedCard.jsx";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
@@ -957,6 +958,17 @@ function LineIcon({ name, className = "" }) {
     music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm12-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
     photo: "M4 7h4l2-3h4l2 3h4v13H4zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
     rocket: "M12 2c3 2 5 5 5 9l-2 3h-6l-2-3c0-4 2-7 5-9zM12 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM7 16l-3 4M17 16l3 4",
+    point: "M5 12h14M12 5v14",
+    layout: "M3 6h18M3 6v11a2 2 0 0 0 2 2h6V6M11 19h6a2 2 0 0 0 2-2V6",
+    brand: "M12 2l2.2 6.3L21 10l-6.8 1.7L12 18l-2.2-6.3L3 10l6.8-1.7z",
+    interaction: "M6 4l14 6-5 2-2 5z",
+    media: "M3 7h7l5-4v18l-5-4H3z",
+    flow: "M3 6h12a4 4 0 0 1 0 8H8a4 4 0 0 0 0 8h12M8 14h4",
+    usable: "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+    collab: "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19a5 5 0 0 1 10 0M16 7a3 3 0 1 1-3 3M16 13a4 4 0 0 1 5 4",
+    guard: "M12 2l8 4v6a8 8 0 0 1-8 8 8 8 0 0 1-8-8V6z",
+    code: "M8 7l-5 5 5 5M16 7l5 5-5 5M13 4l-2 16",
+    pen: "M4 20l1-5L17 4a2 2 0 0 1 3 3L8 19z",
   };
   const d = paths[name] || paths.ux;
   return (
@@ -965,6 +977,25 @@ function LineIcon({ name, className = "" }) {
     </svg>
   );
 }
+
+const FOCUS_ICON = {
+  "视觉表达": "visual",
+  "界面排版": "layout",
+  "品牌延展": "brand",
+  "基础交互": "interaction",
+  "业务理解": "media",
+  "信息架构": "layout",
+  "任务流程": "flow",
+  "可用性": "usable",
+  "系统抽象": "system",
+  "组件体系": "system",
+  "研发协同": "collab",
+  "治理流程": "guard",
+  "AI 产品设计": "ai",
+  "Vibe Coding": "code",
+  "设计到落地": "pen",
+};
+const focusIcon = (f) => FOCUS_ICON[f] || "point";
 
 function ProfileOverlay({ onClose }) {
   const rootRef = useRef(null);
@@ -991,7 +1022,7 @@ function ProfileOverlay({ onClose }) {
       <div className="profile-overlay__inner" onClick={(e) => e.stopPropagation()}>
         <header className="po-head pm">
           <p className="eyebrow">PROFILE / ZEN.TANG</p>
-          <h2>Designer × Builder</h2>
+          <h2>{profile.heroRole}</h2>
           <p className="po-head__lead">{profile.philosophy.lead}</p>
         </header>
 
@@ -1079,6 +1110,11 @@ function ProfileOverlay({ onClose }) {
             ))}
           </div>
         </section>
+
+        <section className="po-block pm">
+          <header className="po-block__head"><span>07</span><h3>正在关注</h3><small>NOW</small></header>
+          <p className="po-now">{profile.now}</p>
+        </section>
       </div>
     </div>
   );
@@ -1090,17 +1126,17 @@ function AboutSection() {
   return (
     <section className="chapter chapter-about" id="about" data-chapter="0">
       <div className="chapter-copy chapter-copy--bottom-right" data-narrative-anchor="about" data-thread-x="0.12" data-thread-y="0.12">
-        <p className="eyebrow motion-item">PRODUCT DESIGNER · DESIGNER & BUILDER</p>
-        <h1 className="motion-item hero-name">{profile.heroName}</h1>
-        <div className="hero-divider motion-item" />
-        <p className="chapter-summary chapter-summary--lead motion-item">{profile.heroLine}</p>
-        <ul className="hero-tags motion-item">
+        <p className="eyebrow motion-item" data-motion="dropIn">PRODUCT DESIGNER · DESIGNER & BUILDER</p>
+        <h1 className="motion-item hero-name" data-motion="heroZoom">{profile.heroName}</h1>
+        <div className="hero-divider motion-item" data-motion="lineDraw" />
+        <p className="chapter-summary chapter-summary--lead motion-item" data-motion="riseSoft">{profile.heroLine}</p>
+        <ul className="hero-tags motion-item" data-motion="fromLeft">
           {profile.heroTags.map((tag) => <li key={tag}><LineIcon name="ai" className="hero-tag__icon" />{tag}</li>)}
         </ul>
-        <div className="micro-content-list micro-content-list--stats motion-item">
+        <div className="micro-content-list micro-content-list--stats motion-item" data-motion="fromRight">
           {profile.stats.map(([value, label]) => <button type="button" key={label} onClick={() => setOpen(true)}><strong>{value}</strong><span>{label}</span><small>+</small></button>)}
         </div>
-        <button className="hero-cta motion-item" type="button" onClick={() => setOpen(true)}>
+        <button className="hero-cta motion-item" data-motion="zoomPop" type="button" onClick={() => setOpen(true)}>
           <span>{profile.cta}</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </button>
@@ -1155,7 +1191,7 @@ function CareerStageDetail({ onClose }) {
               <p className="career-line__overview">{stage.overview}</p>
 
               <ul className="career-line__focus">
-                {stage.focus.map((f) => <li key={f}>{f}</li>)}
+                {stage.focus.map((f) => <li key={f}><LineIcon name={focusIcon(f)} className="career-line__focus-icon" />{f}</li>)}
               </ul>
 
               <div className="career-line__deliveries">
@@ -1187,15 +1223,18 @@ function ExperienceSection() {
   return (
     <section className="chapter chapter-experience" id="experience" data-chapter="1">
       <div className="experience-panel scene-panel" data-narrative-anchor="experience" data-thread-x="0.92" data-thread-y="0.12">
-        <header className="scene-heading motion-item">
+        <header className="scene-heading motion-item" data-motion="fromLeft">
           <p className="eyebrow">EXPERIENCE / 2015—NOW</p>
-          <h2>从设计执行者，到产品构建者。</h2>
-          <p>十年设计实践，从视觉与界面出发，持续深入复杂业务、产品体验与设计系统，最终把设计判断推进到 AI 与代码，独立构建可运行产品。</p>
+          <h2>从做好界面，到推动产品体验。</h2>
+          <p>十余年里，角色在变，但核心一直是把复杂问题变清楚，把设计推进到真实产品。</p>
         </header>
-        <div className="experience-card-grid motion-item">
+        <div className="experience-card-grid motion-item" data-motion="fanSplit">
           {career.map((item) => (
             <button type="button" className="experience-card interactive-card" key={item.version} onClick={() => setOpen(true)}>
-              <span>{item.version}</span><small>{item.period}</small><h3>{item.role}</h3><p>{item.note}</p><b>VIEW STAGE</b>
+              <span>{item.version}</span><small className="experience-card__year" aria-hidden="true">{item.period}</small><h3>{item.role}</h3><p>{item.note}</p>
+              <ul className="experience-card__tags">
+                {item.focus.map((f) => <li key={f}><LineIcon name={focusIcon(f)} className="experience-card__tag-icon" />{f}</li>)}
+              </ul>
             </button>
           ))}
         </div>
@@ -1304,7 +1343,7 @@ function SystemSection() {
 
   return (
     <section className="chapter chapter-system" id="wanying" data-chapter="2">
-      <div className="system-screen-ui motion-item" data-narrative-anchor="system" data-thread-x="0.08" data-thread-y="0.12">
+      <div className="system-screen-ui motion-item" data-motion="panelDock" data-narrative-anchor="system" data-thread-x="0.08" data-thread-y="0.12">
         <header className="system-screen-ui__header">
           <div><p className="eyebrow">WANYING DESIGN SYSTEM</p><h2>让复杂产品，共享同一种语言。</h2><p className="system-screen-ui__sub">万应低代码设计系统 · 从 Token 到组件到治理的完整构建实践</p></div>
           <div className="system-status"><span>05 MODULES</span><span>LIVE LIBRARY</span><small>DESIGN × CODE × GOVERNANCE</small></div>
@@ -1469,13 +1508,19 @@ function ProjectDetail({ project, onClose }) {
           <p className="case-head__role">{project.role}</p>
         </header>
 
-        <section className="case-meta case-motion" aria-label="基础信息">
+<section className="case-meta case-motion" aria-label="基础信息">
           {meta.type && <div><i>项目类型</i><b>{meta.type}</b></div>}
           {meta.role && <div><i>我的角色</i><b>{meta.role}</b></div>}
           {meta.period && <div><i>项目周期</i><b>{meta.period}</b></div>}
           {meta.status && <div><i>项目状态</i><b>{meta.status}</b></div>}
           {meta.year && <div><i>完成时间</i><b>{meta.year}</b></div>}
         </section>
+        {(meta.scope || meta.collaboration) && (
+          <section className="case-meta case-meta--wide case-motion" aria-label="主导范围与协作方式">
+            {meta.scope && <div><i>主导范围</i><b>{meta.scope}</b></div>}
+            {meta.collaboration && <div><i>协作方式</i><b>{meta.collaboration}</b></div>}
+          </section>
+        )}
 
         <section className="case-metrics case-motion" aria-label="关键指标">
           {project.metrics.map(([value, label]) => <span key={label}><strong>{value}</strong><small>{label}</small></span>)}
@@ -1533,7 +1578,7 @@ function ProjectDetail({ project, onClose }) {
         )}
 
         <section className="case-block case-motion" aria-labelledby="sec-03">
-          <header className="case-block__head"><span>04</span><div><strong>我的贡献</strong><small>MY CONTRIBUTION</small></div></header>
+          <header className="case-block__head"><span>04</span><div><strong>我的角色与主导范围</strong><small>MY ROLE / OWNERSHIP</small></div></header>
           <p className="case-block__lead">{project.contribution}</p>
           <ul className="case-tags">
             {project.contributionTags.map((tag) => <li key={tag}>{tag}</li>)}
@@ -1647,12 +1692,12 @@ function ProjectsSection() {
   return (
     <section className="chapter chapter-projects" id="projects" data-chapter="3">
       <div className="projects-panel scene-panel" data-narrative-anchor="projects" data-thread-x="0.92" data-thread-y="0.12">
-        <header className="scene-heading motion-item">
-          <p className="eyebrow">SELECTED PROJECTS / 03</p>
-          <h2>用项目证明，我不只做视觉。</h2>
-          <p>从系统建设、企业管理到移动服务，每一个项目都在证明：如何理解业务、定义问题、组织信息，并把设计真正推进到可落地的产品。</p>
+        <header className="scene-heading motion-item" data-motion="fromRight">
+          <p className="eyebrow">SELECTED CASES / PRODUCT &amp; UX</p>
+          <h2>从业务问题，到可落地的产品体验。</h2>
+          <p>挑选不同复杂度的项目，展示我如何定义问题、组织系统、设计关键体验，并把方案推进到落地。</p>
         </header>
-        <div className="project-cover-grid motion-item">
+        <div className="project-cover-grid motion-item" data-motion="cardCascade">
           {projects.map((item, index) => (
             <button type="button" className={`project-cover-card project-cover-card--${index + 1} interactive-card`} key={item.id} onClick={() => setDetail(item)}>
               <div className="project-cover-card__media" style={{ "--project-cover": `url("${item.image}")` }}>
@@ -1749,7 +1794,12 @@ function GraphicSection() {
     return () => { alive = false; };
   }, []);
 
-  const driftItems = items.map((w) => ({ image: w.src, title: w.title, type: w.type, href: undefined, __raw: w }));
+  // Keep the wall input stable while hover copy changes. Recreating this array on
+  // every hover used to tear down the Web Animation and restart each column at 0.
+  const driftItems = useMemo(
+    () => items.map((w) => ({ image: w.src, title: w.title, type: w.type, href: undefined, __raw: w })),
+    [items],
+  );
   const handleTileActivate = useCallback((item) => {
     setActiveWork(item?.__raw ?? null);
   }, []);
@@ -1760,8 +1810,8 @@ function GraphicSection() {
   return (
     <section className="chapter chapter-graphic" id="graphic" data-chapter="4">
       <div className="graphic-panel scene-panel" data-narrative-anchor="graphic" data-thread-x="0.08" data-thread-y="0.12">
-        <header className="scene-heading motion-item"><p className="eyebrow">GRAPHIC ARCHIVE / {String(items.length).padStart(2, "0")}</p><h2>在界面之外，<br />继续构建<br />设计语言。</h2><p>从品牌视觉、海报与版式，到图形系统与动态实验——证明我不只处理复杂产品问题，同样能驾驭多元视觉表达。</p><button type="button" className="chapter-action" onClick={() => setArchiveOpen(true)}>EXPLORE ARCHIVE / 浏览完整作品</button></header>
-        <div className="graphic-drift motion-item">
+        <header className="scene-heading motion-item" data-motion="fromLeft"><p className="eyebrow">GRAPHIC ARCHIVE / {String(items.length).padStart(2, "0")}</p><h2>在界面之外，<br />继续构建<br />设计语言。</h2><p>从品牌视觉、海报与版式，到图形系统与动态实验——证明我不只处理复杂产品问题，同样能驾驭多元视觉表达。</p><button type="button" className="chapter-action" onClick={() => setArchiveOpen(true)}>EXPLORE ARCHIVE / 浏览完整作品</button></header>
+        <div className="graphic-drift motion-item" data-motion="stageReveal">
           <DriftWall
             items={driftItems}
             columns={3}
@@ -1831,16 +1881,42 @@ function VibeSection() {
   return (
     <section className="chapter chapter-vibe" id="vibe" data-chapter="5">
       <div className="vibe-showcase scene-panel" data-narrative-anchor="vibe" data-thread-x="0.5" data-thread-y="0.08">
-        <header className="scene-heading scene-heading--center motion-item"><p className="eyebrow">VIBE CODING / PRODUCT BUILDER LAB</p><h2>不只使用 AI，而是把它变成产品。</h2><p>这里没有设计稿和开发交付的割裂——每个项目都从想法出发，经过设计、AI 协作与代码实现，最终跑在浏览器里，可以被使用、被验证。</p></header>
-        <div className="vibe-card-row motion-item">
+        <header className="scene-heading scene-heading--center motion-item" data-motion="heroZoom"><p className="eyebrow">VIBE CODING / PRODUCT BUILDER LAB</p><h2>不只使用 AI，而是把它变成产品。</h2><p>从想法、提示词、交互到前端实现，我用 AI 缩短从设计判断到可运行产品的距离。这里展示的不是概念图，而是做过、跑过、持续迭代的个人产品。</p></header>
+        <div className="vibe-card-row motion-item" data-motion="cardCascade">
           {vibeProjects.map((item, index) => (
-            <article className="vibe-preview-card interactive-card" key={item.code}>
-              <button type="button" className="vibe-preview-card__media" onClick={() => { setActive(index); setDetailOpen(true); }}>
-                {item.mediaType === "video" ? <video src={item.image} muted loop playsInline preload="metadata" /> : <img src={item.image} alt={`${item.title} 预览`} />}
-                <span>{item.code}</span>
-              </button>
-              <div><small>{item.index} / EXPERIMENT</small><h3>{item.title}</h3><p>{item.description}</p><div className="vibe-card-actions"><button type="button" className="vibe-btn-detail" onClick={() => { setActive(index); setDetailOpen(true); }}>构建过程</button>{item.wechat ? (<button type="button" className="vibe-btn-visit" onClick={() => { setActive(index); setQrOpen(true); }}>打开产品</button>) : item.link && item.link !== "#" ? (<a className="vibe-btn-visit" href={item.link} target="_blank" rel="noreferrer">打开产品</a>) : (<button type="button" className="vibe-btn-visit" onClick={() => setLocalNotice(item)}>打开产品</button>)}</div></div>
-            </article>
+            <TiltedCard
+              key={item.code}
+              className="vibe-tilted-wrap"
+              captionText={item.title}
+              containerHeight="auto"
+              containerWidth="100%"
+              rotateAmplitude={7}
+              scaleOnHover={1.03}
+              showMobileWarning={false}
+              showTooltip={false}
+            >
+              <article className="vibe-preview-card interactive-card">
+                <button type="button" className="vibe-preview-card__media" onClick={() => { setActive(index); setDetailOpen(true); }}>
+                  <img src={item.image} alt={`${item.title} 预览`} />
+                  <span>{item.code}</span>
+                </button>
+                <div>
+                  <small>{item.index} / EXPERIMENT</small>
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                  <div className="vibe-card-actions">
+                    <button type="button" className="vibe-btn-detail" onClick={() => { setActive(index); setDetailOpen(true); }}>构建过程</button>
+                    {item.wechat ? (
+                      <button type="button" className="vibe-btn-visit" onClick={() => { setActive(index); setQrOpen(true); }}>打开产品</button>
+                    ) : item.link && item.link !== "#" ? (
+                      <a className="vibe-btn-visit" href={item.link} target="_blank" rel="noreferrer">打开产品</a>
+                    ) : (
+                      <button type="button" className="vibe-btn-visit" onClick={() => setLocalNotice(item)}>打开产品</button>
+                    )}
+                  </div>
+                </div>
+              </article>
+            </TiltedCard>
           ))}
         </div>
       </div>
@@ -1931,13 +2007,188 @@ function VibeSection() {
           </div>
         </div>
       )}
-      <footer className="final-credit motion-item">
-        <span>AVAILABLE FOR SELECT COLLABORATIONS</span>
+      <footer className="final-credit motion-item" data-motion="riseSoft">
+        <span>复杂产品、设计系统，或仍停留在想法里的 AI 产品，都可以聊聊。</span>
         <a href="mailto:zen92@foxmail.com">ZEN92@FOXMAIL.COM</a>
       </footer>
     </section>
   );
 }
+
+/** Clear staged transforms so hover GSAP / tilt effects start clean. */
+const MOTION_CLEAR = "x,y,scale,scaleX,scaleY,rotation,rotationX,rotationY,filter,transformOrigin,transformPerspective";
+
+const resolveMotionKind = (el, index, chapterIndex) => {
+  const explicit = el.getAttribute("data-motion");
+  if (explicit) return explicit;
+  if (el.classList.contains("hero-name")) return "heroZoom";
+  if (el.classList.contains("hero-divider")) return "lineDraw";
+  if (el.classList.contains("hero-cta")) return "riseSoft";
+  if (el.classList.contains("hero-tags")) return "fromLeft";
+  if (el.classList.contains("micro-content-list")) return "fromRight";
+  if (el.classList.contains("eyebrow") || el.matches("p.eyebrow")) return "dropIn";
+  if (el.classList.contains("chapter-summary")) return "riseSoft";
+  if (el.classList.contains("scene-heading")) {
+    if (el.classList.contains("scene-heading--center")) return "heroZoom";
+    return chapterIndex % 2 === 0 ? "fromLeft" : "fromRight";
+  }
+  if (el.classList.contains("experience-card-grid")) return "fanSplit";
+  if (el.classList.contains("project-cover-grid")) return "cardCascade";
+  if (el.classList.contains("vibe-card-row")) return "cardCascade";
+  if (el.classList.contains("system-screen-ui")) return "panelDock";
+  if (el.classList.contains("graphic-drift")) return "stageReveal";
+  if (el.classList.contains("final-credit")) return "riseSoft";
+  // Fallback variety by index so siblings never all match.
+  const fallbacks = ["fromLeft", "fromRight", "riseSoft", "zoomPop", "dropIn"];
+  return fallbacks[index % fallbacks.length];
+};
+
+const motionTargets = (el, kind) => {
+  if (kind === "fanSplit" || kind === "cardCascade") {
+    const kids = [...el.querySelectorAll(
+      ":scope > .experience-card, :scope > .project-cover-card, :scope > .vibe-tilted-wrap, :scope > .interactive-card",
+    )];
+    return kids.length ? kids : [el];
+  }
+  return [el];
+};
+
+/** Build enter-from / exit-to states per target for a motion kind. */
+const motionStates = (kind, targetIndex, total, scrollDir = 1) => {
+  const side = targetIndex % 2 === 0 ? -1 : 1;
+  const n = total > 1 ? targetIndex / (total - 1) : 0.5;
+
+  switch (kind) {
+    case "heroZoom":
+      return {
+        from: { autoAlpha: 0, scale: 1.72, y: 18 * scrollDir, filter: "blur(14px)", transformOrigin: "50% 50%" },
+        enter: { autoAlpha: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.78, ease: "power3.out" },
+        exit: { autoAlpha: 0, scale: 1.35, y: -24 * scrollDir, filter: "blur(12px)", duration: 0.5, ease: "power2.in" },
+      };
+    case "zoomPop":
+      return {
+        from: { autoAlpha: 0, scale: 0.55, filter: "blur(10px)", transformOrigin: "50% 50%" },
+        enter: { autoAlpha: 1, scale: 1, filter: "blur(0px)", duration: 0.68, ease: "back.out(1.5)" },
+        exit: { autoAlpha: 0, scale: 0.72, filter: "blur(8px)", duration: 0.42, ease: "power2.in" },
+      };
+    case "dropIn":
+      return {
+        from: { autoAlpha: 0, y: -42 * scrollDir, filter: "blur(8px)" },
+        enter: { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.58, ease: "power3.out" },
+        exit: { autoAlpha: 0, y: -28 * scrollDir, filter: "blur(6px)", duration: 0.4, ease: "power2.in" },
+      };
+    case "riseSoft":
+      return {
+        from: { autoAlpha: 0, y: 48 * scrollDir, filter: "blur(8px)" },
+        enter: { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.64, ease: "power3.out" },
+        exit: { autoAlpha: 0, y: 36 * scrollDir, filter: "blur(6px)", duration: 0.42, ease: "power2.in" },
+      };
+    case "fromLeft":
+      return {
+        from: { autoAlpha: 0, x: -90, filter: "blur(9px)" },
+        enter: { autoAlpha: 1, x: 0, filter: "blur(0px)", duration: 0.66, ease: "power3.out" },
+        exit: { autoAlpha: 0, x: -70, filter: "blur(8px)", duration: 0.44, ease: "power2.in" },
+      };
+    case "fromRight":
+      return {
+        from: { autoAlpha: 0, x: 90, filter: "blur(9px)" },
+        enter: { autoAlpha: 1, x: 0, filter: "blur(0px)", duration: 0.66, ease: "power3.out" },
+        exit: { autoAlpha: 0, x: 70, filter: "blur(8px)", duration: 0.44, ease: "power2.in" },
+      };
+    case "lineDraw":
+      return {
+        from: { autoAlpha: 0, scaleX: 0.08, transformOrigin: "left center" },
+        enter: { autoAlpha: 1, scaleX: 1, duration: 0.7, ease: "power2.out" },
+        exit: { autoAlpha: 0, scaleX: 0.15, transformOrigin: "right center", duration: 0.38, ease: "power2.in" },
+      };
+    case "panelDock":
+      return {
+        from: {
+          autoAlpha: 0,
+          scale: 0.82,
+          y: 50 * scrollDir,
+          rotateX: 18,
+          filter: "blur(12px)",
+          transformOrigin: "50% 60%",
+          transformPerspective: 1100,
+        },
+        enter: {
+          autoAlpha: 1, scale: 1, y: 0, rotateX: 0, filter: "blur(0px)",
+          duration: 0.8, ease: "power3.out",
+        },
+        exit: {
+          autoAlpha: 0, scale: 0.9, y: -36 * scrollDir, rotateX: -12, filter: "blur(10px)",
+          duration: 0.5, ease: "power2.in",
+        },
+      };
+    case "stageReveal":
+      return {
+        from: {
+          autoAlpha: 0, x: 70, scale: 0.88, filter: "blur(12px)",
+          transformOrigin: "70% 50%",
+        },
+        enter: { autoAlpha: 1, x: 0, scale: 1, filter: "blur(0px)", duration: 0.78, ease: "power3.out" },
+        exit: { autoAlpha: 0, x: 50, scale: 0.92, filter: "blur(10px)", duration: 0.48, ease: "power2.in" },
+      };
+    case "fanSplit": {
+      // Children peel in from left / right edges.
+      return {
+        from: {
+          autoAlpha: 0,
+          x: side * (72 + n * 28),
+          y: 28 * scrollDir,
+          rotateY: side * -28,
+          scale: 0.9,
+          filter: "blur(10px)",
+          transformOrigin: side < 0 ? "0% 50%" : "100% 50%",
+          transformPerspective: 900,
+        },
+        enter: {
+          autoAlpha: 1, x: 0, y: 0, rotateY: 0, scale: 1, filter: "blur(0px)",
+          duration: 0.7, ease: "power3.out",
+        },
+        exit: {
+          autoAlpha: 0, x: side * 64, y: -18 * scrollDir, rotateY: side * 18, scale: 0.92, filter: "blur(8px)",
+          duration: 0.42, ease: "power2.in",
+        },
+      };
+    }
+    case "cardCascade": {
+      // Deck-style: slight overscale + alternate lateral drift.
+      return {
+        from: {
+          autoAlpha: 0,
+          x: side * (40 + targetIndex * 18),
+          y: 56 + targetIndex * 10,
+          scale: 1.18 - targetIndex * 0.04,
+          rotate: side * (4 + targetIndex),
+          filter: "blur(12px)",
+          transformOrigin: "50% 80%",
+        },
+        enter: {
+          autoAlpha: 1, x: 0, y: 0, scale: 1, rotate: 0, filter: "blur(0px)",
+          duration: 0.72, ease: "power3.out",
+        },
+        exit: {
+          autoAlpha: 0,
+          x: side * -48,
+          y: -40 * scrollDir,
+          scale: 0.9,
+          rotate: side * -6,
+          filter: "blur(10px)",
+          duration: 0.46,
+          ease: "power2.in",
+        },
+      };
+    }
+    default:
+      return {
+        from: { autoAlpha: 0, y: 30 * scrollDir, filter: "blur(8px)" },
+        enter: { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.6, ease: "power3.out" },
+        exit: { autoAlpha: 0, y: -24 * scrollDir, filter: "blur(6px)", duration: 0.4, ease: "power2.in" },
+      };
+  }
+};
 
 export function App() {
   const [activeChapter, setActiveChapter] = useState(0);
@@ -1993,90 +2244,128 @@ export function App() {
     };
   }, []);
 
-  const prevChapterRef = useRef(0);
+  const prevChapterRef = useRef(null);
+  const chapterMotionTlRef = useRef(null);
 
   useLayoutEffect(() => {
-    const context = gsap.context(() => {
-      const allItems = gsap.utils.toArray(".chapter .motion-item");
-      const activeItems = gsap.utils.toArray(`.chapter[data-chapter="${activeChapter}"] .motion-item`);
-      const inactiveItems = allItems.filter((item) => !activeItems.includes(item));
-      gsap.killTweensOf(allItems);
+    if (!shellRef.current) return undefined;
 
-      // Direction vector per element, based on its position inside the chapter.
-      // Items on the left fly in from the left, right items from the right,
-      // centered items drop in from above. This gives every page a composed,
-      // spatial entrance instead of a uniform slide.
-      const directionFor = (el, chapterEl) => {
-        if (!chapterEl) return { x: 0, y: -28 };
-        const cr = chapterEl.getBoundingClientRect();
-        const er = el.getBoundingClientRect();
-        const cx = (er.left + er.right) / 2 - cr.left;
-        const cy = (er.top + er.bottom) / 2 - cr.top;
-        const nx = cr.width ? (cx / cr.width) - 0.5 : 0; // -0.5..0.5
-        const ny = cr.height ? (cy / cr.height) - 0.5 : 0;
-        const dist = Math.sqrt(nx * nx + ny * ny) || 1;
-        // Horizontal bias dominates for off-center items.
-        const x = Math.abs(nx) > 0.18 ? Math.sign(nx) * 46 : 0;
-        const y = x === 0 ? (cy < cr.height * 0.5 ? -34 : 34) : ny * 30;
-        return { x, y };
-      };
+    const allMotionRoots = gsap.utils.toArray(shellRef.current.querySelectorAll(".chapter .motion-item"));
+    const allLeafTargets = allMotionRoots.flatMap((el) => {
+      const kind = resolveMotionKind(el, 0, 0);
+      return motionTargets(el, kind);
+    });
 
-      const prevChapter = prevChapterRef.current;
-      const prevChapterEl = shellRef.current?.querySelector(`.chapter[data-chapter="${prevChapter}"]`);
-      const prevItems = prevChapterEl
-        ? gsap.utils.toArray(prevChapterEl.querySelectorAll(".motion-item"))
-        : [];
-
-      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-
-      // EXIT previous chapter: quick scatter-out (fade + drift + blur + shrink).
-      if (prevItems.length && prevChapter !== activeChapter) {
-        prevItems.forEach((el) => {
-          const d = directionFor(el, prevChapterEl);
-          tl.to(el, {
-            autoAlpha: 0,
-            x: d.x * 0.6,
-            y: d.y * 0.6,
-            scale: 0.96,
-            filter: "blur(6px)",
-            duration: 0.3,
-            ease: "power2.in",
-            overwrite: "auto",
-          }, 0);
-        });
-        // Make sure non-active, non-prev items stay hidden too.
-        const others = inactiveItems.filter((el) => !prevItems.includes(el));
-        gsap.set(others, { autoAlpha: 0, x: 0, y: 0, scale: 1, filter: "blur(0px)" });
-      } else {
-        gsap.set(inactiveItems, { autoAlpha: 0, x: 0, y: 0, scale: 1, filter: "blur(0px)" });
-      }
-
-      // ENTER active chapter: directional fly-in with light back-out + blur->sharp.
-      const activeChapterEl = shellRef.current?.querySelector(`.chapter[data-chapter="${activeChapter}"]`);
-      activeItems.forEach((el, i) => {
-        const d = directionFor(el, activeChapterEl);
-        gsap.set(el, { autoAlpha: 0, x: d.x, y: d.y, scale: 0.96, filter: "blur(8px)" });
-        tl.to(el, {
-          autoAlpha: 1,
-          x: 0,
-          y: 0,
-          scale: 1,
-          filter: "blur(0px)",
-          duration: 0.5,
-          ease: "back.out(1.4)",
-          overwrite: "auto",
-        }, prevItems.length && prevChapter !== activeChapter ? 0.22 : 0);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      gsap.set([...allMotionRoots, ...allLeafTargets], {
+        autoAlpha: 1, x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1,
+        rotation: 0, rotationX: 0, rotationY: 0, filter: "blur(0px)",
+        clearProps: MOTION_CLEAR,
       });
-
       prevChapterRef.current = activeChapter;
-    }, shellRef);
-    return () => context.revert();
+      return undefined;
+    }
+
+    const activeChapterEl = shellRef.current.querySelector(`.chapter[data-chapter="${activeChapter}"]`);
+    const activeRoots = activeChapterEl
+      ? gsap.utils.toArray(activeChapterEl.querySelectorAll(".motion-item"))
+      : [];
+    const prevChapter = prevChapterRef.current;
+    const isChapterChange = prevChapter !== null && prevChapter !== activeChapter;
+    const scrollDir = isChapterChange && activeChapter < prevChapter ? -1 : 1;
+    const prevChapterEl = isChapterChange
+      ? shellRef.current.querySelector(`.chapter[data-chapter="${prevChapter}"]`)
+      : null;
+    const prevRoots = prevChapterEl
+      ? gsap.utils.toArray(prevChapterEl.querySelectorAll(".motion-item"))
+      : [];
+
+    const expand = (roots, chapterIndex) => roots.flatMap((el, rootIndex) => {
+      const kind = resolveMotionKind(el, rootIndex, chapterIndex);
+      const targets = motionTargets(el, kind);
+      // Parent grid shells stay visible so children can animate independently.
+      if (targets.length > 1 && targets[0] !== el) {
+        gsap.set(el, { autoAlpha: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)", clearProps: MOTION_CLEAR });
+      }
+      return targets.map((target, targetIndex) => ({
+        el: target,
+        kind,
+        rootIndex,
+        targetIndex,
+        total: targets.length,
+        states: motionStates(kind, targetIndex, targets.length, scrollDir),
+      }));
+    });
+
+    const activePieces = expand(activeRoots, activeChapter);
+    const prevPieces = expand(prevRoots, prevChapter ?? activeChapter);
+    const activeSet = new Set(activePieces.map((p) => p.el));
+    const prevSet = new Set(prevPieces.map((p) => p.el));
+
+    chapterMotionTlRef.current?.kill();
+    gsap.killTweensOf([...allMotionRoots, ...allLeafTargets]);
+
+    // Park every non-playing page offstage.
+    allLeafTargets.forEach((el) => {
+      if (!activeSet.has(el) && !prevSet.has(el)) {
+        gsap.set(el, { autoAlpha: 0, x: 0, y: 0, scale: 1, clearProps: MOTION_CLEAR });
+      }
+    });
+    allMotionRoots.forEach((el) => {
+      if (!activeRoots.includes(el) && !prevRoots.includes(el)) {
+        gsap.set(el, { autoAlpha: 0 });
+      }
+    });
+
+    const tl = gsap.timeline({ defaults: { overwrite: "auto" } });
+    chapterMotionTlRef.current = tl;
+
+    // EXIT — each piece uses its own reverse language.
+    if (isChapterChange && prevPieces.length) {
+      prevPieces.forEach((piece, i) => {
+        const { exit } = piece.states;
+        const { duration, ease, ...vars } = exit;
+        tl.to(piece.el, { ...vars, duration, ease }, i * 0.05);
+      });
+    }
+
+    // ENTER — choreographed by content type; replays on every visit.
+    const enterAt = isChapterChange && prevPieces.length ? 0.22 : 0;
+    activePieces.forEach((piece, i) => {
+      const { from, enter } = piece.states;
+      const { duration, ease, ...toVars } = enter;
+      gsap.set(piece.el, from);
+      // Nested grid parents stay present.
+      if (piece.el.closest(".motion-item") && piece.el.classList.contains("motion-item") === false) {
+        const parent = piece.el.closest(".motion-item");
+        if (parent) gsap.set(parent, { autoAlpha: 1 });
+      }
+      const lag = piece.total > 1
+        ? piece.rootIndex * 0.1 + piece.targetIndex * 0.09
+        : piece.rootIndex * 0.1;
+      tl.to(piece.el, { ...toVars, duration, ease }, enterAt + lag + i * 0.01);
+    });
+
+    // Ensure active roots that only act as shells are visible.
+    activeRoots.forEach((el) => {
+      const kind = resolveMotionKind(el, 0, activeChapter);
+      if (motionTargets(el, kind).length > 1) {
+        gsap.set(el, { autoAlpha: 1 });
+      }
+    });
+
+    prevChapterRef.current = activeChapter;
+
+    return () => {
+      tl.kill();
+      if (chapterMotionTlRef.current === tl) chapterMotionTlRef.current = null;
+    };
   }, [activeChapter]);
 
   useEffect(() => {
     const scope = shellRef.current?.querySelector(`.chapter[data-chapter="${activeChapter}"]`);
     if (!scope || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const cards = [...scope.querySelectorAll(".interactive-card")];
+    const cards = [...scope.querySelectorAll(".interactive-card")].filter((card) => !card.closest(".vibe-tilted-wrap"));
     const cleanups = cards.map((card) => {
       const image = card.querySelector("img");
       const onEnter = () => {

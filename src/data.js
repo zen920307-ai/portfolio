@@ -9,25 +9,25 @@ export const chapters = [
 
 export const profile = {
   heroName: "ZEN.TANG",
-  heroRole: "Product Designer · Designer & Builder",
-  heroLine: "10+ 年产品体验设计师，从产品构想、设计系统到可运行产品，把设计判断推进到真正落地。",
-  heroTags: ["Product Design", "Design System", "AI × Builder"],
-  cta: "VIEW FULL PROFILE / 查看完整档案",
+  heroRole: "Product Design Lead · Design System · AI Builder",
+  heroLine: "10+ 年产品与体验设计，把复杂业务、设计系统与 AI 能力，做成真正可落地的产品。",
+  heroTags: ["PRODUCT DESIGN", "DESIGN SYSTEM", "ENTERPRISE UX", "AI PRODUCT"],
+  cta: "VIEW PROFILE / 查看完整履历",
   stats: [
-    ["10+", "年产品体验与设计实践"],
-    ["0→1", "从构想到可运行产品落地"],
-    ["MULTI", "B 端 · AI · 移动端 · 数据可视化"],
+    ["10+", "YEARS / 产品与体验设计"],
+    ["SYSTEM", "系统化设计实践"],
+    ["AI", "从想法到可运行原型"],
   ],
   info: [
     ["姓名", "唐启东"],
+    ["出生年月", "1992.03"],
     ["所在地", "长沙 / 中国"],
-    ["职业", "Product Designer"],
+    ["职业", "Product Design Lead"],
     ["经验", "10+ Years"],
     ["方向", "B 端 · AI · 移动端 · 数据可视化"],
-    ["邮箱", "zen92@foxmail.com"],
   ],
   philosophy: {
-    lead: "多数设计师的边界停在原型与交付，我的边界是：产品构想 → 结构与流程 → 视觉系统 → AI 与代码实现 → 可运行产品。",
+    lead: "我做的不只是界面，而是让复杂产品变得清楚、可用、可持续。",
     pillars: [
       { icon: "ux", title: "用户体验", en: "UX", desc: "从真实场景出发，解决复杂产品问题，而非只做视觉表达。" },
       { icon: "product", title: "产品思维", en: "Product", desc: "关注业务目标与用户任务，让设计服务于产品而非停在界面。" },
@@ -35,10 +35,11 @@ export const profile = {
     ],
   },
   capabilities: [
-    { icon: "product", group: "Product Design", items: ["用户体验设计", "信息架构", "产品流程设计", "复杂系统设计"] },
-    { icon: "visual", group: "Visual Design", items: ["品牌视觉", "KV 设计", "3D 视觉", "插画设计"] },
-    { icon: "ai", group: "AI Product", items: ["AI 产品设计", "Prompt Engineering", "AI 工作流", "Vibe Coding"] },
-    { icon: "system", group: "System Design", items: ["Design System", "Component Library", "Design Token"] },
+    { icon: "product", group: "PRODUCT", items: ["产品定义", "信息架构", "用户流程", "复杂业务梳理"] },
+    { icon: "system", group: "SYSTEM", items: ["Design System", "Token", "Component", "Pattern"] },
+    { icon: "ux", group: "EXPERIENCE", items: ["企业级体验", "Web", "Mobile", "数据可视化"] },
+    { icon: "ai", group: "BUILD", items: ["Figma", "Vibe Coding", "React", "AI Workflow"] },
+    { icon: "visual", group: "VISUAL", items: ["Brand", "Graphic", "3D", "Motion"] },
   ],
   timeline: [
     ["2015", "进入 UI 设计领域", "建立视觉与界面基础"],
@@ -48,7 +49,7 @@ export const profile = {
     ["2026", "独立构建可运行产品", "产品构想 → 设计 → 落地的完整闭环"],
   ],
   workflow: ["Research", "Define", "Design", "Prototype", "Code", "Validate"],
-  workflowDesc: "多数 UI 的边界停在原型 → 设计稿 → 开发交付。我把它推进到：产品构想 → 结构与流程 → 视觉系统 → AI 与代码实现 → 可运行产品。",
+  workflowDesc: "先把问题定义清楚，再谈方案；先让系统跑通，再追求惊艳。好的设计不是多做一层视觉，而是减少一层理解成本。",
   stack: [
     { group: "Design", items: ["Figma", "Adobe", "C4D"] },
     { group: "AI", items: ["ChatGPT", "Claude", "Midjourney", "ComfyUI"] },
@@ -60,7 +61,8 @@ export const profile = {
     { icon: "photo", title: "Photography", desc: "记录城市与自然瞬间" },
     { icon: "rocket", title: "AI Exploration", desc: "持续探索新工具和创造方式" },
   ],
-  signature: "Designer × Builder",
+  now: "持续探索 AI × Product Design：通过 Vibe Coding 把个人产品想法快速做成可运行原型，重点是让 AI 进入真实产品工作流，而不只是生成内容。",
+  signature: "Product Design Lead × Builder",
 };
 
 export const career = [
@@ -68,7 +70,7 @@ export const career = [
     version: "V1.0",
     role: "UI Designer",
     period: "2015—2017",
-    note: "从视觉表达进入数字产品，建立界面与品牌基础。",
+    note: "把界面做对，也把信息讲清楚。",
     stage: "FOUNDATION",
     en: "Visual Foundation",
     keyword: "视觉",
@@ -82,7 +84,7 @@ export const career = [
     version: "V2.0",
     role: "Product Interface Designer",
     period: "2018—2020",
-    note: "深入业务流程，把复杂需求转译成清晰界面。",
+    note: "从页面走进业务流程。",
     stage: "BUSINESS",
     en: "Product Thinking",
     keyword: "业务",
@@ -96,7 +98,7 @@ export const career = [
     version: "V3.0",
     role: "Design System Builder",
     period: "2021—2023",
-    note: "用组件、变量和规范支撑多业务线协作。",
+    note: "把经验沉淀成可以复用的系统。",
     stage: "SYSTEM",
     en: "System Building",
     keyword: "系统",
@@ -108,14 +110,14 @@ export const career = [
   },
   {
     version: "V4.0",
-    role: "Designer & Builder",
+    role: "Product / UI Design Lead",
     period: "2024—NOW",
-    note: "从设计稿走向 AI 与代码，独立构建可运行产品。",
+    note: "从个人产出，走向团队与业务影响。",
     stage: "BUILDER",
     en: "Product Builder",
     keyword: "落地",
     overview: "不再停在原型与交付，而是从产品构想出发，用 AI 与代码把设计判断推进到可运行、可验证的产品，打通产品 → 设计 → 落地的完整闭环。",
-    focus: ["AI 产品设计", "Vibe Coding", "可运行产品", "设计到落地"],
+    focus: ["AI 产品设计", "Vibe Coding", "设计到落地"],
     deliveries: ["从构想到可运行产品的独立构建", "AI 驱动的设计与开发流程", "产品 / 设计 / 代码的完整闭环"],
     lesson: "设计的终点不是交付稿，而是让正确的产品判断真正跑起来。",
     shift: "从「交付设计稿」走向「交付可运行产品」",
@@ -280,13 +282,15 @@ const mysteryProject = {
     "/assets/library/04-projects/01-mystery-app/gallery/09-session-schedule.webp",
     "/assets/library/04-projects/01-mystery-app/gallery/10-booking-confirm.webp",
   ],
-  metrics: [["10", "核心界面"], ["3", "关键角色"], ["5→3", "决策步骤"]],
+  metrics: [["30+", "核心界面"], ["3", "关键角色"], ["5→3", "决策步骤"]],
   meta: {
     type: "移动端 App / O2O 娱乐社交",
     role: "产品策略、用户体验、视觉系统",
     period: "8 周产品设计",
     status: "完整产品案例",
     year: "2026",
+    scope: "产品策略、核心任务流、移动端体验与视觉系统",
+    collaboration: "以产品方案为主导，面向后续研发实现整理关键交互与组件规则",
   },
   overview: "入局是一套面向剧本杀玩家、DM 与门店的移动端产品。它把‘选什么、和谁玩、去哪玩、如何确认’四段割裂决策收拢为可理解、可比较、可完成的一条任务链。",
   background: "剧本杀玩家面对丰富的剧本、榜单与门店内容，但内容口径不统一，往往需要在平台、微信群与电话之间反复确认；新用户尤其难以判断剧本是否适合自己，也缺少对门店、DM 与同场玩家的稳定信任。",
@@ -307,7 +311,7 @@ const mysteryProject = {
     "评分必须带上玩家经验、门店与 DM 上下文，才能成为可信决策证据。",
     "预约不是一个按钮，而是一段需要持续同步参与人、场次和政策的协作流程。",
   ],
-  contribution: "以资深产品设计师视角负责从问题定义到高保真方案的完整闭环：重组信息架构与任务流，建立内容标签和评价可信度模型，定义移动端 Token 与组件规范，并将发现、详情、门店、场次和订单 10 个核心界面统一到同一套产品语言中。",
+    contribution: "以资深产品设计师视角负责从问题定义到高保真方案的完整闭环：重组信息架构与任务流，建立内容标签和评价可信度模型，定义移动端 Token 与组件规范，并将发现、详情、门店、场次和订单 30+ 个核心界面统一到同一套产品语言中。",
   contributionTags: ["产品策略", "研究框架", "信息架构", "任务流", "移动端 UI", "组件规范", "视觉系统"],
   contributionSplit: [
     { label: "策略与研究", value: 24 },
@@ -341,9 +345,9 @@ const mysteryProject = {
     { label: "视觉系统", value: 92 },
     { label: "落地协同", value: 90 },
   ],
-  outcome: "完成覆盖发现、筛选、榜单、剧本详情、门店、场次与订单的 10 个核心界面，并沉淀一套可继续扩展到社区、消息和个人中心的移动端视觉系统。任务走查中，核心预约决策由 5 个节点收敛为 3 个连续步骤。",
+  outcome: "完成覆盖发现、筛选、榜单、剧本详情、门店、场次与订单的 30+ 个核心界面，并沉淀一套可继续扩展到社区、消息和个人中心的移动端视觉系统。任务走查中，核心预约决策由 5 个节点收敛为 3 个连续步骤。",
   outcomeBars: [
-    { label: "核心任务覆盖", value: 92, caption: "10 个界面" },
+    { label: "核心任务覆盖", value: 92, caption: "30+ 个界面" },
     { label: "组件一致性", value: 94, caption: "统一 Token" },
     { label: "决策路径收敛", value: 82, caption: "5 → 3 步" },
     { label: "三方信息闭环", value: 88, caption: "玩家 / DM / 门店" },
@@ -351,7 +355,7 @@ const mysteryProject = {
   details: [
     ["背景", "选本、组局与门店履约长期分散在多个渠道，用户难以形成连续决策。"],
     ["方法", "用研究框架重组信息架构，再以同一套组件系统覆盖完整预约链路。"],
-    ["结果", "形成 10 个关键界面、一条连续任务流和一套可扩展的移动端品牌系统。"],
+    ["结果", "形成 30+ 个关键界面、一条连续任务流和一套可扩展的移动端品牌系统。"],
   ],
 };
 
@@ -376,8 +380,16 @@ const cdezProject = {
     "/assets/library/04-projects/02-cdez-platform/ai-gallery/09-finance.webp",
     "/assets/library/04-projects/02-cdez-platform/ai-gallery/10-permissions.webp",
   ],
-  metrics: [["10", "核心业务界面"], ["9", "运营业务域"], ["24", "关键任务路径"]],
-  meta: { type: "园区一体化运营平台", role: "产品策略 / 体验设计负责人", period: "5 个月", status: "完整平台案例", year: "2024" },
+  metrics: [["50+", "核心业务界面"], ["9", "运营业务域"], ["24", "关键任务路径"]],
+  meta: {
+    type: "园区一体化运营平台",
+    role: "产品策略 / 体验设计负责人",
+    period: "5 个月",
+    status: "完整平台案例",
+    year: "2024",
+    scope: "业务梳理、对象建模、角色工作台、数据体验与关键流程",
+    collaboration: "与产品、业务及研发共同对齐业务规则、关键流程与验收口径",
+  },
   overview: "面向长沙经开区集团及园区运营团队的一体化管理平台。项目将分散在部门、台账与线下沟通中的招商、企业服务、工单处置、巡检、风险预警和经营分析统一到可追踪的数字工作台，让管理者看全局、业务人员做任务、服务人员闭环问题。",
   background: "园区业务不是单一后台：管理层关注经营态势，招商团队关注线索与企业，服务团队关注诉求与工单，巡检人员关注现场处置。原有系统各自成岛，同一企业在不同模块拥有多套口径，跨部门协作依赖表格、群聊和人工催办。",
   pains: [
@@ -427,14 +439,14 @@ const cdezProject = {
   capabilities: [
     { label: "业务抽象", value: 95 }, { label: "信息架构", value: 94 }, { label: "数据体验", value: 93 }, { label: "交互设计", value: 91 }, { label: "协同落地", value: 92 },
   ],
-  outcome: "形成覆盖九个运营业务域的标准 B 端体验：10 个核心界面统一企业、事件、角色与指标语言，24 条关键任务路径拥有明确状态和异常反馈，高密度业务在同一套视觉与交互规范下保持稳定、清晰和可扩展。",
+  outcome: "形成覆盖九个运营业务域的标准 B 端体验：50+ 个核心界面统一企业、事件、角色与指标语言，24 条关键任务路径拥有明确状态和异常反馈，高密度业务在同一套视觉与交互规范下保持稳定、清晰和可扩展。",
   outcomeBars: [
     { label: "业务域覆盖", value: 90, caption: "9 个业务域" },
     { label: "关键路径闭环", value: 94, caption: "24 条路径" },
     { label: "字段口径统一", value: 88, caption: "320+ 字段" },
     { label: "角色工作台", value: 92, caption: "9 类角色" },
   ],
-  details: [["背景", "园区业务跨部门、跨系统运行，数据口径和责任链难以统一。"], ["方法", "以企业和事件为主对象，按角色任务组织工作台与业务闭环。"], ["结果", "完成 10 个核心界面及一套可扩展的标准 B 端数据体验规范。"]],
+  details: [["背景", "园区业务跨部门、跨系统运行，数据口径和责任链难以统一。"], ["方法", "以企业和事件为主对象，按角色任务组织工作台与业务闭环。"], ["结果", "完成 50+ 个核心界面及一套可扩展的标准 B 端数据体验规范。"]],
 };
 
 const wanyingSiteProject = {
@@ -458,8 +470,16 @@ const wanyingSiteProject = {
     "/assets/library/04-projects/03-wanying-site/ai-gallery/09-pricing.webp",
     "/assets/library/04-projects/03-wanying-site/ai-gallery/10-trial.webp",
   ],
-  metrics: [["10", "完整官网页面"], ["6", "决策角色路径"], ["4", "产品能力支柱"]],
-  meta: { type: "企业低代码平台官网", role: "品牌策略 / UX / 视觉指导", period: "12 周", status: "完整官网案例", year: "2024" },
+  metrics: [["24", "完整官网页面"], ["6", "决策角色路径"], ["4", "产品能力支柱"]],
+  meta: {
+    type: "企业低代码平台官网",
+    role: "品牌策略 / UX / 视觉指导",
+    period: "12 周",
+    status: "完整官网案例",
+    year: "2024",
+    scope: "内容架构、产品叙事、关键页面体验、视觉方向与转化路径",
+    collaboration: "围绕业务负责人、技术决策者、生态伙伴和开发者组织内容层级与页面交付",
+  },
   overview: "万应工场官网承载产品认知、行业教育、客户信任与销售转化。设计以低代码平台真实能力为核心，把可视化构建、数据模型、自动化流程与集成中心转译为易理解、可验证的企业产品叙事，并为业务负责人、技术决策者、生态伙伴和开发者建立不同深度的浏览路径。",
   background: "低代码产品能力多、技术链路长，官网容易陷入功能罗列：业务用户看不懂技术价值，技术用户找不到架构与部署依据，销售线索又缺少足够信任证明。项目需要同时解决产品表达、品牌差异与转化效率。",
   pains: [
@@ -479,7 +499,7 @@ const wanyingSiteProject = {
     "功能页适合短而聚焦，解决方案与案例页需要更长的行业上下文，页面长度应该服从任务。",
     "企业级品牌感来自信息自信、真实产品细节和可验证证据，而不是装饰密度。",
   ],
-  contribution: "负责官网策略、信息架构、页面节奏与视觉系统，定义价值主张和四大能力支柱，规划首页、产品、功能、解决方案、案例、定价与试用 10 个页面，并建立适配长短页面的组件、产品界面展示、立体品牌资产和转化模块规范。",
+  contribution: "负责官网策略、信息架构、页面节奏与视觉系统，定义价值主张和四大能力支柱，规划首页、产品、功能、解决方案、案例、定价与试用 24 个页面，并建立适配长短页面的组件、产品界面展示、立体品牌资产和转化模块规范。",
   contributionTags: ["品牌策略", "内容架构", "官网 UX", "产品叙事", "视觉指导", "转化设计"],
   contributionSplit: [
     { label: "策略与内容架构", value: 30 },
@@ -501,7 +521,7 @@ const wanyingSiteProject = {
   ],
   timeline: [
     { phase: "DISCOVER", title: "内容与决策研究", desc: "盘点现有官网并理解业务、技术和生态角色的判断依据。" },
-    { phase: "FRAME", title: "叙事与站点地图", desc: "建立四层内容模型和十个页面的角色路径。" },
+    { phase: "FRAME", title: "叙事与站点地图", desc: "建立四层内容模型和 24 个页面的角色路径。" },
     { phase: "DESIGN", title: "页面与品牌系统", desc: "完成不同长度页面、产品 UI 展示和立体品牌资产。" },
     { phase: "DELIVER", title: "响应式与转化规范", desc: "统一组件、页面节奏、CTA 与内容交付规则。" },
   ],
@@ -509,14 +529,14 @@ const wanyingSiteProject = {
   capabilities: [
     { label: "品牌策略", value: 94 }, { label: "内容架构", value: 95 }, { label: "官网体验", value: 93 }, { label: "视觉指导", value: 94 }, { label: "转化设计", value: 90 },
   ],
-  outcome: "完成 10 个各自承担明确任务的官网页面：功能页保持高清聚焦，首页、解决方案和案例页保留完整叙事；整套体验以同一品牌、栅格、产品 UI 与转化组件贯穿，既能解释低代码能力，也能支撑企业客户的信任与决策。",
+  outcome: "完成 24 个各自承担明确任务的官网页面：功能页保持高清聚焦，首页、解决方案和案例页保留完整叙事；整套体验以同一品牌、栅格、产品 UI 与转化组件贯穿，既能解释低代码能力，也能支撑企业客户的信任与决策。",
   outcomeBars: [
-    { label: "核心页面覆盖", value: 100, caption: "10 个页面" },
+    { label: "核心页面覆盖", value: 100, caption: "24 个页面" },
     { label: "决策角色路径", value: 92, caption: "6 类角色" },
     { label: "产品能力表达", value: 94, caption: "4 大支柱" },
     { label: "转化节点连续", value: 90, caption: "演示 / 咨询 / 试用" },
   ],
-  details: [["背景", "低代码产品能力复杂，官网同时承担产品教育、企业信任与销售转化。"], ["方法", "以价值、能力、证据和行动组织信息，并按任务决定页面长度。"], ["结果", "形成 10 个完整页面和一套统一、清晰且具有产品识别度的官网系统。"]],
+  details: [["背景", "低代码产品能力复杂，官网同时承担产品教育、企业信任与销售转化。"], ["方法", "以价值、能力、证据和行动组织信息，并按任务决定页面长度。"], ["结果", "形成 24 个完整页面和一套统一、清晰且具有产品识别度的官网系统。"]],
 };
 
 const legacyProjects = [

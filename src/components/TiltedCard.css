@@ -1,0 +1,143 @@
+.tilted-card-figure {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  perspective: 800px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+  outline: none;
+}
+
+.tilted-card-figure--content {
+  height: auto;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.tilted-card-figure:focus-visible {
+  outline: 1px solid rgba(232, 197, 71, 0.55);
+  outline-offset: 2px;
+}
+
+.tilted-card-mobile-alert {
+  position: absolute;
+  top: 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  display: none;
+  z-index: 4;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+@media (max-width: 640px) {
+  .tilted-card-mobile-alert {
+    display: block;
+  }
+
+  .tilted-card-caption {
+    display: none !important;
+  }
+}
+
+.tilted-card-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+  transform: rotateX(0deg) rotateY(0deg) scale(1);
+}
+
+.tilted-card-figure--content .tilted-card-inner {
+  height: auto;
+}
+
+.tilted-card-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  object-fit: cover;
+  border-radius: 15px;
+  will-change: transform;
+  transform: translateZ(0);
+  filter: brightness(0.95) saturate(0.88);
+  pointer-events: none;
+  user-select: none;
+}
+
+.tilted-card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  will-change: transform;
+  transform: translateZ(30px);
+  pointer-events: none;
+}
+
+.tilted-card-caption {
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 4px;
+  background-color: #fff;
+  padding: 4px 10px;
+  font-size: 10px;
+  color: #2d2d2d;
+  opacity: 0;
+  z-index: 5;
+  white-space: nowrap;
+  font-family: ui-monospace, Consolas, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", monospace;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0) rotate(0deg);
+}
+
+/* —— Vibe Coding: whole project card tilts —— */
+.vibe-tilted-wrap {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  cursor: default;
+}
+
+.vibe-tilted-wrap .tilted-card-inner {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
+.vibe-tilted-wrap .vibe-preview-card {
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+
+.vibe-tilted-wrap:hover,
+.vibe-tilted-wrap.is-hovering {
+  z-index: 4;
+}
+
+.vibe-tilted-wrap .vibe-preview-card__media {
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.vibe-tilted-wrap .vibe-preview-card__media img,
+.vibe-tilted-wrap .vibe-preview-card__media video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
