@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preload" as="image" href="/frames/scroll-01/frame-0001.webp" fetchpriority="high" />
+    <link rel="icon" type="image/png" href="/favicon/logo.png" />
+    <link rel="shortcut icon" href="/favicon/icon.ico" />
+    <link rel="apple-touch-icon" href="/favicon/logo.png" />
+    <meta name="theme-color" content="#050505" />
+    <title>ZEN · DESIGN</title>
+    <script type="module" crossorigin src="/assets/index-Bdsrw_21.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-NT3BAgjt.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // GitHub Pages serves 404.html for client routes. Restore the original
+      // route before React starts so /admin works on a static host.
+      (() => {
+        const route = new URLSearchParams(location.search).get("__zen_route");
+        if (route && route.startsWith("/")) history.replaceState(null, "", route);
+      })();
+    </script>
+  </body>
+</html>
