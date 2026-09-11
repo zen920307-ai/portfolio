@@ -4,5 +4,8 @@
 /frames/*
   Cache-Control: public, max-age=31536000, immutable
 
+/frame-packs/*
+  Cache-Control: public, max-age=31536000, immutable
+
 /assets/responsive/*
   Cache-Control: public, max-age=31536000, immutable
