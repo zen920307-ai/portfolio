@@ -3,3 +3,14 @@ dist/
 .openai/
 *.log
 .vite/
+.env*
+!.env.example
+.dev.vars*
+
+# Local scratch space and heavy source archives (never commit)
+tmp/
+asset-source-archive/
+backups/
+
+# Root-level QA snapshots (qa/ keeps the curated reports)
+/qa-*.png

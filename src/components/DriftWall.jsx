@@ -1,4 +1,4 @@
-import { useMemo, useRef, useLayoutEffect } from 'react';
+import { useMemo, useRef, useLayoutEffect, useCallback } from 'react';
 import './DriftWall.css';
 
 /**
@@ -25,6 +25,33 @@ const DriftWall = ({
   const containerRef = useRef(null);
   const trackRefs = useRef([]);
   const animationRefs = useRef([]);
+  const playbackRef = useRef({ visible: false, reduced: false, pressed: false });
+  const syncPlayback = useCallback(() => {
+    const { visible, reduced, pressed } = playbackRef.current;
+    const play = visible && !reduced && !pressed && !document.hidden;
+    animationRefs.current.forEach((animation) => play ? animation.play() : animation.pause());
+  }, []);
+
+  useLayoutEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onMotionChange = () => {
+      playbackRef.current.reduced = reducedMotion.matches;
+      syncPlayback();
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      playbackRef.current.visible = entry.isIntersecting;
+      syncPlayback();
+    });
+    observer.observe(containerRef.current);
+    onMotionChange();
+    reducedMotion.addEventListener('change', onMotionChange);
+    document.addEventListener('visibilitychange', syncPlayback);
+    return () => {
+      observer.disconnect();
+      reducedMotion.removeEventListener('change', onMotionChange);
+      document.removeEventListener('visibilitychange', syncPlayback);
+    };
+  }, [syncPlayback]);
 
   const resolvedItems = useMemo(
     () => (Array.isArray(items) && items.length ? items : []),
@@ -69,6 +96,7 @@ const DriftWall = ({
             : [{ transform: 'translate3d(0,-50%,0)' }, { transform: 'translate3d(0,0,0)' }];
           return track.animate(frames, { duration, iterations: Infinity, easing: 'linear' });
         });
+        syncPlayback();
       });
     });
 
@@ -78,7 +106,7 @@ const DriftWall = ({
       animationRefs.current.forEach((animation) => animation?.cancel());
       animationRefs.current = [];
     };
-  }, [loopUnits, direction, speed, variance]);
+  }, [loopUnits, direction, speed, variance, syncPlayback]);
 
   const handleTileEnter = (item) => {
     if (typeof onTileActivate === 'function') onTileActivate(item);
@@ -90,21 +118,27 @@ const DriftWall = ({
     if (typeof onOpen === 'function') onOpen(item);
   };
   const pauseWall = (event) => {
-    animationRefs.current.forEach((animation) => animation?.pause());
+    playbackRef.current.pressed = true;
+    syncPlayback();
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
   const resumeWall = (event) => {
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    requestAnimationFrame(() => {
-      animationRefs.current.forEach((animation) => animation?.play());
-    });
+    playbackRef.current.pressed = false;
+    syncPlayback();
   };
 
   const rootClass = ['drift-wall', className].filter(Boolean).join(' ');
   return (
-    <div className={rootClass} ref={containerRef} role="group" aria-label="Drifting wall of tiles">
+    <div
+      className={rootClass}
+      ref={containerRef}
+      role="group"
+      aria-label="Drifting wall of tiles"
+      style={{ '--dw-gap': `${gap}px`, '--dw-radius': `${radius}px` }}
+    >
       {loopUnits.map((col, c) => {
         const renderOne = (prefix) =>
           col.map((item, i) => (
@@ -117,12 +151,18 @@ const DriftWall = ({
               onFocus={() => handleTileEnter(item)}
               onBlur={handleTileLeave}
               onPointerDown={pauseWall}
-              onPointerUp={resumeWall}
+              onPointerUp={(event) => {
+                resumeWall(event);
+                if (event.pointerType === 'touch') handleTileOpen(item);
+              }}
               onPointerCancel={resumeWall}
               onClick={() => handleTileOpen(item)}
               aria-label={item.title ?? `作品 ${i + 1}`}
             >
               <span className="drift-wall__inner">
+                {/* Graphic archive images do not have generated responsive
+                    derivatives. Use their source files so the animation can
+                    measure a real image instead of a failed srcset response. */}
                 <img src={item.image} alt={item.title ?? ''} loading="eager" decoding="async" draggable={false} />
                 <span className="drift-wall__caption">
                   {item.type ? <small>{item.type}</small> : null}

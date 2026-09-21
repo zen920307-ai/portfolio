@@ -1,0 +1,36 @@
+{
+  "title": "入局｜剧本杀社交体验设计",
+  "style": [
+    "detail-overlay",
+    "detail-overlay--case",
+    "detail-overlay--mobile"
+  ],
+  "inquiryClass": "case-block case-motion inquiry inquiry--mobile",
+  "inquiryBox": {
+    "w": 354,
+    "h": 1234
+  },
+  "stageBox": {
+    "w": 390,
+    "h": 4276,
+    "sh": 4276
+  },
+  "overflow": [],
+  "inquiryText": "02\n调研与判断\nCARE / THINK / EFFECT\n01\n他们关心什么\n02\n我如何判断\n03\n做成什么效果\n门店访谈\n5 家\nDM 访谈\n8 位\n玩家访谈\n16 人\n任务走查\n18 条\n新玩家\n今晚能不能玩？适不适合我？\n先给人数、时长、氛围\n老玩家\n这本值不值得再组？\n机制、作者、复玩可见\nDM / 门店\n档期稳不稳？人齐了没？\n席位、政策、订单同屏\nBEFORE · 跨渠道\n发现\n微信群\n电话\n确认\n到店\nAFTER · 产品内闭环\n发现\n组局\n入场\n约束优先\n\n先解决今晚能不能玩\n\n信任可解释\n\n评分必须带上下文\n\n组局是协作\n\n三方信息持续同步\n\n5→3\n决策步骤\n30+\n核心界面\n3\n角色闭环",
+  "hasJourney": true,
+  "hasMatrix": false,
+  "hasHeatmap": false,
+  "hasMoves": 4,
+  "hasPains": 0,
+  "hasResearchCards": 0,
+  "overview": "入局把选本、组局、到店履约收成一条可比较、可完成的任务链，同时服务玩家、DM 与门店。",
+  "blocks": [
+    "项目概述",
+    "调研与判断",
+    "我的角色",
+    "核心设计",
+    "设计流程",
+    "能力切片",
+    "项目成果"
+  ]
+}

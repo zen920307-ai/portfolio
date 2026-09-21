@@ -3,15 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preload" as="image" href="/frames/scroll-01/frame-0001.webp" fetchpriority="high" />
+    <link rel="preload" as="image" href="/assets/video/cloud-entry-poster.webp" fetchpriority="high" />
+    <link rel="preload" as="image" href="/assets/dundun-pupu.webp" fetchpriority="high" />
+    <link rel="preconnect" href="https://chat.zenslab.top" crossorigin />
     <link rel="icon" type="image/png" href="/favicon/logo.png" />
     <link rel="shortcut icon" href="/favicon/icon.ico" />
     <link rel="apple-touch-icon" href="/favicon/logo.png" />
     <meta name="theme-color" content="#050505" />
     <title>ZEN · DESIGN</title>
+    <style>
+      html, body { margin: 0; background: #24292c; }
+      #boot-scene { position: fixed; inset: 0; z-index: 9999; overflow: hidden; background: #24292c; color: #e4e2db; opacity: 1; transition: opacity .35s ease; }
+      #boot-scene img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      #boot-scene .boot-scene__full { position: absolute; inset: 0; }
+      #boot-scene::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,.34),rgba(0,0,0,.34)), radial-gradient(ellipse at 50% 45%,rgba(0,0,0,.08) 12%,rgba(0,0,0,.38) 62%,rgba(0,0,0,.82) 100%), linear-gradient(0deg,rgba(0,0,0,.42),transparent 28% 72%,rgba(0,0,0,.28)); }
+      #boot-scene p { position: absolute; z-index: 1; inset: auto 20px 9%; margin: 0; text-align: center; font: 12px/1.9 system-ui,sans-serif; letter-spacing: .16em; }
+      #boot-scene small { display: block; color: #f3e91a; font-size: 10px; letter-spacing: .24em; }
+      #boot-scene.is-ready { opacity: 0; pointer-events: none; }
+      @media (prefers-reduced-motion: reduce) { #boot-scene { transition: none; } }
+    </style>
   </head>
   <body>
+    <div id="boot-scene" role="status" aria-label="正在加载作品集">
+      <img src="__BOOT_POSTER__" alt="" width="1920" height="1080" />
+      <img class="boot-scene__full" src="/assets/video/cloud-entry-poster.webp" alt="" width="1920" height="1080" fetchpriority="high" />
+      <p><small>ZEN · DESIGN</small>正在准备你的探索之旅</p>
+      <noscript><p>请启用 JavaScript 以浏览作品集</p></noscript>
+    </div>
     <div id="root"></div>
+    <script>
+      // GitHub Pages serves 404.html for client routes. Restore the original
+      // route before React starts so /admin works on a static host.
+      (() => {
+        const route = new URLSearchParams(location.search).get("__zen_route");
+        if (route && route.startsWith("/")) history.replaceState(null, "", route);
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

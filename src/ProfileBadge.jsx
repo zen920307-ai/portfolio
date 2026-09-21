@@ -20,7 +20,7 @@ const resetRope = (paths, x = 0, y = 0) => {
   paths.forEach(({ node, side }) => node?.setAttribute("d", getRopePath(side, x, y)));
 };
 
-export function ProfileBadge({ hidden = false }) {
+export function ProfileBadge({ hidden = false, entryVisible = true }) {
   const [open, setOpen] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const [dialogPresent, setDialogPresent] = useState(false);
@@ -53,9 +53,13 @@ export function ProfileBadge({ hidden = false }) {
   }, []);
 
   useLayoutEffect(() => {
+    if (!entryVisible) {
+      gsap.set(rootRef.current, { y: -12, autoAlpha: 0 });
+      return undefined;
+    }
     const intro = gsap.fromTo(rootRef.current, { y: -64, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: .55, delay: .2, ease: "back.out(1.8)" });
     return () => intro.kill();
-  }, []);
+  }, [entryVisible]);
 
   useLayoutEffect(() => {
     if (!dropRef.current) return;
@@ -194,7 +198,7 @@ export function ProfileBadge({ hidden = false }) {
   };
 
   return (
-    <div className={`identity-badge ${open ? "is-open" : ""}${hidden || dialogPresent ? " is-hidden" : ""}`} ref={rootRef} aria-label="唐启东身份工牌">
+    <div className={`identity-badge ${open ? "is-open" : ""}${hidden || dialogPresent ? " is-hidden" : ""}${entryVisible ? "" : " is-entry-hidden"}`} ref={rootRef} aria-label="唐启东身份工牌">
       <BorderGlow
         className="identity-badge__trigger-shell"
         edgeSensitivity={18}
@@ -239,7 +243,7 @@ export function ProfileBadge({ hidden = false }) {
               <div className="identity-card__copy">
                 <p>UI / UX · 2015—NOW</p>
                 <h2>TANG QIDONG</h2>
-                <span>十年 UI/UX 经验。设计系统负责人。</span>
+                <span>十余年 UI/UX 经验 · 设计系统与复杂产品体验负责人</span>
               </div>
               <button type="button" className="identity-card__flip" onPointerDown={(e) => e.stopPropagation()} onClick={toggleFlip}>CLICK CARD / 翻转</button>
             </section>

@@ -95,7 +95,7 @@
   opacity: 0;
   z-index: 5;
   white-space: nowrap;
-  font-family: ui-monospace, Consolas, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", monospace;
+  font-family: "PingFang SC", "苹方-简", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
   font-weight: 700;
   letter-spacing: 0.02em;
   will-change: transform, opacity;

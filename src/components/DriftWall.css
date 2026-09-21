@@ -127,12 +127,12 @@
 }
 .drift-wall__caption small {
   color: var(--accent, #f3c600);
-  font: 700 8px/1 ui-monospace, Consolas, monospace;
+  font: 700 8px/1 ui-monospace, Consolas, system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
   letter-spacing: .12em;
 }
 .drift-wall__caption strong {
   color: #fff;
-  font: 600 13px/1.2 "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font: 600 13px/1.2 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
   letter-spacing: .01em;
 }
 

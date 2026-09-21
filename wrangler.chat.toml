@@ -1,0 +1,14 @@
+name = "portfolio-chat"
+main = "worker/chat-worker.js"
+compatibility_date = "2026-08-05"
+routes = [
+  { pattern = "chat.zenslab.top", custom_domain = true }
+]
+
+[vars]
+CHAT_ALLOWED_ORIGINS = "https://design.zenslab.top"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.md"]
+fallthrough = true

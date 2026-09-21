@@ -19,7 +19,7 @@
 .stroke-text__stroke,
 .stroke-text__fill {
   user-select: none;
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  font-family: "PingFang SC", "苹方-简", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
 }
 
 .prelude-title-wrap .stroke-text {

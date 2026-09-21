@@ -1,0 +1,27 @@
+{
+  "body": {
+    "sel": "body",
+    "text": "\n    请用 PC 端浏览查看完整效果01AB",
+    "family": "system-ui, -apple-system, \"Segoe UI\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif"
+  },
+  "lead": {
+    "sel": ".case-block__lead",
+    "text": "这个项目真正难的不是把剧本封面做漂亮。难处在于：",
+    "family": "system-ui, -apple-system, \"Segoe UI\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif"
+  },
+  "inquiry": {
+    "sel": ".inq-cast strong",
+    "text": "今晚能不能玩？适不适合我？",
+    "family": "system-ui, -apple-system, \"Segoe UI\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif"
+  },
+  "method": {
+    "sel": ".inq-methods b",
+    "text": "5 家",
+    "family": "system-ui, -apple-system, \"Segoe UI\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif"
+  },
+  "simsun": 64,
+  "yahei": 64,
+  "used": 58,
+  "usedFont": "14.5px / 25.81px system-ui, -apple-system, \"Segoe UI\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif",
+  "hasSong": false
+}

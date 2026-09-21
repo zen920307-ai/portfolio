@@ -1,0 +1,36 @@
+{
+  "title": "经开智域｜长沙经开区一体化平台",
+  "style": [
+    "detail-overlay",
+    "detail-overlay--case",
+    "detail-overlay--admin"
+  ],
+  "inquiryClass": "case-block case-motion inquiry inquiry--admin",
+  "inquiryBox": {
+    "w": 551,
+    "h": 671
+  },
+  "stageBox": {
+    "w": 658,
+    "h": 1024,
+    "sh": 3131
+  },
+  "overflow": [],
+  "inquiryText": "02\n调研与判断\nCARE / THINK / EFFECT\n01\n他们关心什么\n02\n我如何判断\n03\n做成什么效果\n部门访谈\n12 部门\n任务跟随\n24 流程\n角色分类\n18 人\n字段盘点\n320+\n角色\n关心什么\n我怎么解\n管理层\n经营态势能否同一判断\n角色化指标工作台\n招商\n线索和企业散落在哪\n企业 360° 主档\n企服\n诉求有没有人跟\n事件责任链\n巡检\n现场问题如何闭环\nSLA · 证据 · 回访\n企业主档\n招商\n合同\n服务\n风险\n经营\n事件主档\n发现\n派发\n处理\n升级\n复盘\n角色先于模块\n\n首页是行动清单\n\n双对象贯穿\n\n企业 + 事件\n\n状态必须闭环\n\n责任 · 时限 · 证据\n\n9\n角色工作台\n24\n路径闭环\n50+\n核心界面",
+  "hasJourney": false,
+  "hasMatrix": true,
+  "hasHeatmap": false,
+  "hasMoves": 4,
+  "hasPains": 0,
+  "hasResearchCards": 0,
+  "overview": "把招商、企服、工单、巡检、风险与经营分析，收进同一套可追踪的园区运营工作台。",
+  "blocks": [
+    "项目概述",
+    "调研与判断",
+    "我的角色",
+    "核心设计",
+    "设计流程",
+    "能力切片",
+    "项目成果"
+  ]
+}

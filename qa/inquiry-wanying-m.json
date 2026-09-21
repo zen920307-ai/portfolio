@@ -1,0 +1,36 @@
+{
+  "title": "万应工场｜企业低代码平台官网",
+  "style": [
+    "detail-overlay",
+    "detail-overlay--case",
+    "detail-overlay--website"
+  ],
+  "inquiryClass": "case-block case-motion inquiry inquiry--website",
+  "inquiryBox": {
+    "w": 390,
+    "h": 1003
+  },
+  "stageBox": {
+    "w": 390,
+    "h": 3938,
+    "sh": 3938
+  },
+  "overflow": [],
+  "inquiryText": "02\n调研与判断\nCARE / THINK / EFFECT\n01\n他们关心什么\n02\n我如何判断\n03\n做成什么效果\n内容盘点\n86 模块\n决策访谈\n14 人\n竞品基准\n12 站\n转化分析\n6 路径\n角色 / 层级\n价值\n能力\n证据\n行动\n业务负责人\n●\n○\n●\n●\n技术决策者\n○\n●\n●\n●\n生态伙伴\n○\n●\n●\n○\n开发者\n○\n●\n○\n●\n01\n浏览\n02\n理解\n03\n信任\n04\n试用\n产品即品牌\n\n界面是第一证据\n\n长度服从任务\n\n短页聚焦，长页论证\n\n每页有下一步\n\n演示 / 咨询 / 试用\n\n24\n完整页面\n6\n角色路径\n4\n能力支柱",
+  "hasJourney": false,
+  "hasMatrix": false,
+  "hasHeatmap": true,
+  "hasMoves": 4,
+  "hasPains": 0,
+  "hasResearchCards": 0,
+  "overview": "用产品化叙事讲清低代码能力，让不同决策角色找到对应深度，并自然进入演示、咨询或试用。",
+  "blocks": [
+    "项目概述",
+    "调研与判断",
+    "我的角色",
+    "核心设计",
+    "设计流程",
+    "能力切片",
+    "项目成果"
+  ]
+}

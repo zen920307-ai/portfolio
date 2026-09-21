@@ -1,23 +1,34 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
-  AppWindow, ArrowUpRight, Box, Building2, ChartNoAxesCombined, CircleGauge,
+  AppWindow, ArrowRight, ArrowUpRight, Box, Building2, ChartNoAxesCombined, CircleGauge,
   CodeXml, Command, Compass, Cpu, Database, FileText, Film, Layers3,
   LayoutDashboard, MessageCircle, MousePointerClick, Network, Orbit, Palette,
   PenTool, Route, Search, ShieldCheck, Smartphone, Sparkles, Target, UsersRound,
   Wand2, Wind, Workflow, Zap,
 } from "lucide-react";
-import { career, chapters, profile, projects, systemModules, vibeProjects, works } from "./data.js";
+import { chapters } from "./data.js";
+import { resolveContent, syncPublishedContent } from "./content.js";
 import { ProfileBadge } from "./ProfileBadge.jsx";
+import LoadingCompanions from "./components/LoadingCompanions.jsx";
+import IpEpilogue from "./components/IpEpilogue.jsx";
 import DriftWall from "./components/DriftWall.jsx";
 import TiltedCard from "./components/TiltedCard.jsx";
 import StrokeText from "./components/StrokeText.jsx";
 import { LogoLoop } from "./components/LogoLoop.jsx";
 import TextType from "./components/TextType.jsx";
+import { ResponsiveImage, responsiveImageUrl } from "./components/ResponsiveImage.jsx";
+
+gsap.registerPlugin(ScrollTrigger);
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const FRAME_COUNTS = [240, 240, 240, 240, 240];
+// The source sequences were authored at 60fps. Sampling every second frame
+// preserves a smooth ~30fps story beat while cutting cold-load, decoding, and
+// Cache Storage pressure in half on external connections.
+const FRAME_SAMPLE_STEP = 2;
 // Normalized subject positions sampled from each sequence. Mobile portraits
 // interpolate between these points so the narrow crop follows the story,
 // while the desktop composition keeps its original centered framing.
@@ -43,20 +54,33 @@ const mobileFocalPoint = (segment, frameIndex) => {
     y: from[2] + (to[2] - from[2]) * progress,
   };
 };
-const FRAME_CACHE_NAME = "tang-portfolio-frames-v2";
+const FRAME_CACHE_NAME = "tang-portfolio-frames-v3";
 const framePath = (segment, frameIndex) => (
   `/frames/scroll-0${segment + 1}/frame-${String(frameIndex + 1).padStart(4, "0")}.webp`
 );
-// The first three full sequences are ready before entry. This makes the first
-// half of the narrative play at its intended cadence while the final two
-// sequences continue in the background. Every URL is the original 1920 x
-// 1080 source frame.
+const sampledFrameIndices = (segment, start = 0, count = FRAME_COUNTS[segment]) => {
+  const end = Math.min(FRAME_COUNTS[segment], start + count);
+  const indexes = [];
+  for (let frameIndex = start; frameIndex < end; frameIndex += FRAME_SAMPLE_STEP) indexes.push(frameIndex);
+  const finalIndex = end - 1;
+  if (end === FRAME_COUNTS[segment] && indexes.at(-1) !== finalIndex) indexes.push(finalIndex);
+  return indexes;
+};
+const sampledFrameIndex = (segment, frameIndex) => {
+  const lastIndex = FRAME_COUNTS[segment] - 1;
+  const bounded = clamp(frameIndex, 0, lastIndex);
+  return bounded === lastIndex ? lastIndex : Math.round(bounded / FRAME_SAMPLE_STEP) * FRAME_SAMPLE_STEP;
+};
+// The opening act consists of three complete frame transitions.  They are
+// deliberately the entry gate, so the first scroll through the story is
+// seamless; the last two transitions continue warming after entry.
 const BOOT_SEGMENT_COUNT = 3;
-const BACKGROUND_SEGMENT_COUNT = FRAME_COUNTS.length - BOOT_SEGMENT_COUNT;
 const CRITICAL_FRAME_URLS = Array.from(
   { length: BOOT_SEGMENT_COUNT },
-  (_, segment) => Array.from({ length: FRAME_COUNTS[segment] }, (_, frameIndex) => framePath(segment, frameIndex)),
+  (_, segment) => sampledFrameIndices(segment).map((frameIndex) => framePath(segment, frameIndex)),
 ).flat();
+const BOOT_PACK_VERSION = "v1";
+const BOOT_PACK_READY_URL = `/frame-packs/boot-${BOOT_PACK_VERSION}-ready`;
 let criticalFramePromise = null;
 const backgroundFramePromises = new Map();
 const framePreloadListeners = new Set();
@@ -71,48 +95,185 @@ const emitBackgroundProgress = (value) => {
 const firstSegmentReadyListeners = new Set();
 const emitFirstSegmentReady = () => firstSegmentReadyListeners.forEach((listener) => listener());
 
+const FRAME_REQUEST_TIMEOUT_MS = 20_000;
+
+async function fetchWithTimeout(url, options = {}, onChunk) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), FRAME_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (!response.ok) throw new Error(`REQUEST_${response.status}`);
+    if (!onChunk || !response.body) return response;
+
+    const total = Number(response.headers.get("content-length")) || 0;
+    const reader = response.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.byteLength;
+      onChunk(received, total);
+    }
+    onChunk(received, total || received);
+    return new Response(new Blob(chunks), { headers: response.headers, status: response.status, statusText: response.statusText });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+// The prelude is a complete little scene, not a blank screen while the main
+// site downloads.  Do not begin the much larger frame queue until its own
+// backdrop and characters have had a chance to appear.
+function usePreludeVisualsReady() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const backdrop = "/assets/video/cloud-entry-poster.webp";
+    const waitForImage = (src) => new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => image.decode().catch(() => {}).then(resolve);
+      image.onerror = () => resolve();
+      image.src = src;
+      if (image.complete) resolve();
+    });
+    // Allow the decoded opening scene and chat controls to paint before
+    // starting any cinematic downloads, even on connections slower than 1.8s.
+    const finish = () => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (!cancelled) setReady(true);
+      }));
+    };
+    Promise.all([waitForImage(backdrop), waitForImage("/assets/dundun-pupu.webp")]).then(finish);
+    return () => { cancelled = true; };
+  }, []);
+  return ready;
+}
+
 async function cacheCriticalFrames() {
   if (criticalFramePromise) return criticalFramePromise;
 
   criticalFramePromise = (async () => {
-    if (!("caches" in window)) throw new Error("CACHE_UNAVAILABLE");
-    const cache = await caches.open(FRAME_CACHE_NAME);
+    // A browser may prohibit Cache Storage in private or embedded contexts.
+    // Let visitors into the story instead of trapping them behind a loader.
+    if (!("caches" in window)) {
+      emitFrameProgress(100);
+      emitFirstSegmentReady();
+      return;
+    }
+    let cache;
+    try {
+      cache = await caches.open(FRAME_CACHE_NAME);
+    } catch {
+      emitFrameProgress(100);
+      emitFirstSegmentReady();
+      return;
+    }
+    if (await cache.match(BOOT_PACK_READY_URL)) {
+      emitFrameProgress(100);
+      emitFirstSegmentReady();
+      return;
+    }
+
     let completed = 0;
     let enterGateSignaled = false;
-    // All three boot sequences are cached before ENTER unlocks — the loading
-    // page now carries enough content for visitors to wait out the download.
+    let highestProgress = 0;
+    const reportProgress = (value) => {
+      highestProgress = Math.max(highestProgress, value);
+      emitFrameProgress(highestProgress);
+    };
+    // The first three narrative transitions block entry.  The remaining
+    // transitions are warmed after entry, in the background and in order.
     const enterGateCount = CRITICAL_FRAME_URLS.length;
-    const update = () => emitFrameProgress(Math.round((completed / CRITICAL_FRAME_URLS.length) * 100));
-    const queue = [...CRITICAL_FRAME_URLS];
-    const worker = async () => {
-      while (queue.length) {
-        const url = queue.shift();
-        const existing = await cache.match(url);
-        if (!existing) {
-          let response;
-          for (let attempt = 0; attempt < 3; attempt += 1) {
-            try {
-              response = await fetch(url, { cache: "force-cache" });
-              if (!response.ok) throw new Error(`FRAME_${response.status}`);
-              await cache.put(url, response.clone());
-              break;
-            } catch (error) {
-              if (attempt === 2) throw error;
-            }
-          }
-        }
-        completed += 1;
-        update();
-        if (!enterGateSignaled && completed >= enterGateCount) {
-          enterGateSignaled = true;
-          emitFirstSegmentReady();
-        }
+    const update = () => reportProgress(Math.round((completed / CRITICAL_FRAME_URLS.length) * 100));
+    const markCompleted = () => {
+      completed += 1;
+      update();
+      if (!enterGateSignaled && completed >= enterGateCount) {
+        enterGateSignaled = true;
+        emitFirstSegmentReady();
       }
     };
 
+    const packTransfer = new Map();
+    const reportPackTransfer = () => {
+      const values = [...packTransfer.values()];
+      const knownTotal = values.reduce((sum, item) => sum + item.total, 0);
+      const received = values.reduce((sum, item) => sum + item.received, 0);
+      // The first 20% represents the actual package transfer.  This avoids a
+      // motionless 0% label while a cold device is still receiving bytes.
+      if (knownTotal > 0) reportProgress(Math.min(20, Math.round((received / knownTotal) * 20)));
+    };
+
+    const unpackSegment = async (segment) => {
+      const packUrl = `/frame-packs/boot-0${segment + 1}.zfp`;
+      packTransfer.set(segment, { received: 0, total: 0 });
+      const response = await fetchWithTimeout(packUrl, { cache: "force-cache" }, (received, total) => {
+        packTransfer.set(segment, { received, total });
+        reportPackTransfer();
+      });
+      const buffer = await response.arrayBuffer();
+      const view = new DataView(buffer);
+      const magic = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
+      if (magic !== "ZFP1") throw new Error("FRAME_PACK_MAGIC");
+      const headerLength = view.getUint32(4, true);
+      const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 8, headerLength)));
+      if (header.version !== 1 || header.segment !== segment) throw new Error("FRAME_PACK_VERSION");
+      const dataOffset = 8 + headerLength;
+
+      for (let start = 0; start < header.entries.length; start += 12) {
+        const batch = header.entries.slice(start, start + 12);
+        await Promise.all(batch.map(async ({ frameIndex, offset, length }) => {
+          const url = framePath(segment, frameIndex);
+          if (!(await cache.match(url))) {
+            const bytes = buffer.slice(dataOffset + offset, dataOffset + offset + length);
+            await cache.put(url, new Response(bytes, {
+              headers: { "content-type": "image/webp", "cache-control": "public, max-age=31536000, immutable" },
+            }));
+          }
+          markCompleted();
+        }));
+      }
+    };
+
+    const fallbackToIndividualFrames = async () => {
+      completed = 0;
+      enterGateSignaled = false;
+      const queue = [...CRITICAL_FRAME_URLS];
+      const worker = async () => {
+        while (queue.length) {
+          const url = queue.shift();
+          const existing = await cache.match(url);
+          if (!existing) {
+            let response;
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              try {
+                response = await fetchWithTimeout(url, { cache: "force-cache" });
+                await cache.put(url, response.clone());
+                break;
+              } catch (error) {
+                if (attempt === 2) throw error;
+              }
+            }
+          }
+          markCompleted();
+        }
+      };
+      await Promise.all(Array.from({ length: 6 }, worker));
+    };
+
     emitFrameProgress(0);
-    await Promise.all(Array.from({ length: 6 }, worker));
+    try {
+      const results = await Promise.allSettled(
+        Array.from({ length: BOOT_SEGMENT_COUNT }, (_, segment) => unpackSegment(segment)),
+      );
+      if (results.some((result) => result.status === "rejected")) throw new Error("FRAME_PACK_UNAVAILABLE");
+    } catch {
+      await fallbackToIndividualFrames();
+    }
     if (!enterGateSignaled) emitFirstSegmentReady();
+    await cache.put(BOOT_PACK_READY_URL, new Response("ready"));
     emitFrameProgress(100);
   })().catch((error) => {
     criticalFramePromise = null;
@@ -124,8 +285,7 @@ async function cacheCriticalFrames() {
 
 function warmFrameWindow(segment, start = 0, count = 96, onProgress) {
   if (!("caches" in window) || segment < 0 || segment >= FRAME_COUNTS.length) return Promise.resolve();
-  const end = Math.min(FRAME_COUNTS[segment], start + count);
-  const urls = Array.from({ length: Math.max(0, end - start) }, (_, offset) => framePath(segment, start + offset));
+  const urls = sampledFrameIndices(segment, start, count).map((frameIndex) => framePath(segment, frameIndex));
   const queued = urls.filter((url) => !backgroundFramePromises.has(url));
   const existing = urls.filter((url) => backgroundFramePromises.has(url)).map((url) => backgroundFramePromises.get(url));
   const worker = async () => {
@@ -146,7 +306,7 @@ function warmFrameWindow(segment, start = 0, count = 96, onProgress) {
   return Promise.all([...existing, ...Array.from({ length: 2 }, worker)]);
 }
 
-function useFrameBootloader() {
+function useFrameBootloader(enabled) {
   const [progress, setProgress] = useState(0);
   const [canEnter, setCanEnter] = useState(false);
   const [ready, setReady] = useState(false);
@@ -158,15 +318,17 @@ function useFrameBootloader() {
     if (backgroundStartedRef.current) return;
     backgroundStartedRef.current = true;
     let completed = 0;
-    const total = BACKGROUND_SEGMENT_COUNT * FRAME_COUNTS[0];
+    const total = Array.from({ length: FRAME_COUNTS.length }, (_, segment) => sampledFrameIndices(segment).length)
+      .reduce((sum, count) => sum + count, 0);
     const reportBackgroundProgress = () => {
       completed += 1;
       emitBackgroundProgress(Math.min(100, Math.round((completed / total) * 100)));
     };
-    Promise.all([
-      warmFrameWindow(3, 0, FRAME_COUNTS[3], reportBackgroundProgress),
-      warmFrameWindow(4, 0, FRAME_COUNTS[4], reportBackgroundProgress),
-    ]).then(() => {
+    (async () => {
+      for (let segment = 0; segment < FRAME_COUNTS.length; segment += 1) {
+        await warmFrameWindow(segment, 0, FRAME_COUNTS[segment], reportBackgroundProgress);
+      }
+    })().then(() => {
       emitBackgroundProgress(100);
       setBackgroundReady(true);
     });
@@ -190,12 +352,12 @@ function useFrameBootloader() {
     framePreloadListeners.add(setProgress);
     const onFirst = () => setCanEnter(true);
     firstSegmentReadyListeners.add(onFirst);
-    run();
+    if (enabled) run();
     return () => {
       framePreloadListeners.delete(setProgress);
       firstSegmentReadyListeners.delete(onFirst);
     };
-  }, [run]);
+  }, [enabled, run]);
 
   return { progress, canEnter, ready, error, retry: run, backgroundReady, startBackgroundWarm };
 }
@@ -209,7 +371,7 @@ function CinematicLoadingNotice() {
   return (
     <aside className="cinematic-loading-notice" aria-live="polite">
       <span className="cinematic-loading-notice__spinner" aria-hidden="true" />
-      <span><b>高清动态帧正在准备 {String(progress).padStart(3, "0")}%</b><small>偶发卡顿不代表最终效果</small></span>
+      <span><b>高清动态帧正在准备 {String(progress).padStart(3, "0")}%</b><small>加载期间如有短暂卡顿，属预载过程，不代表最终体验</small></span>
     </aside>
   );
 }
@@ -223,13 +385,13 @@ const PRELUDE_CHAPTERS = [
     card: {
       title: "个人概览",
       en: "ABOUT",
-      lead: "认识我是谁，以及我如何看待设计。",
+      lead: "角色、立场与设计方法。",
       stats: [
         ["10+", "年产品与体验设计"],
         ["B 端", "企业级复杂系统为主"],
         ["AI", "设计到可运行原型"],
       ],
-      body: "从界面执行一路走到产品判断与设计系统。这里会交代角色、立场，以及我为什么这样做事。",
+      body: "从界面执行到产品判断、设计系统，再到可运行产品。",
     },
   },
   {
@@ -240,13 +402,13 @@ const PRELUDE_CHAPTERS = [
     card: {
       title: "职业经历",
       en: "EXPERIENCE",
-      lead: "十年角色如何一步步变重。",
+      lead: "十年，角色一步步变重。",
       stats: [
         ["2015", "进入设计领域"],
         ["4 段", "关键阶段演进"],
         ["系统", "从页面到业务闭环"],
       ],
-      body: "UI → 产品界面 → 复杂 B 端与数据平台 → AI 与独立构建。重点不是履历清单，而是判断力如何形成。",
+      body: "UI → 产品界面 → 复杂 B 端 → AI 构建。看判断如何形成，而不是履历清单。",
     },
   },
   {
@@ -257,13 +419,13 @@ const PRELUDE_CHAPTERS = [
     card: {
       title: "代表项目",
       en: "PROJECTS",
-      lead: "30–40+ 项目里，只留下值得讲的。",
+      lead: "只留下值得展开的案例。",
       stats: [
         ["移动端", "剧本杀社交体验"],
         ["B 端", "园区运营与数据协同"],
         ["官网", "低代码产品叙事"],
       ],
-      body: "每个案例都按问题定义、系统组织、关键体验与落地结果来写，而不是只贴一堆界面图。",
+      body: "问题定义、系统组织、关键体验、落地结果。不堆界面图。",
     },
   },
   {
@@ -274,13 +436,13 @@ const PRELUDE_CHAPTERS = [
     card: {
       title: "视觉设计",
       en: "VISUAL",
-      lead: "界面之外，继续构建设计语言。",
+      lead: "界面之外的视觉语言。",
       stats: [
         ["品牌", "识别与叙事"],
         ["平面", "海报与版式实验"],
         ["动态", "图形与节奏"],
       ],
-      body: "证明我不只处理复杂产品逻辑，也能驾驭更开放的视觉表达与审美判断。",
+      body: "品牌、海报、版式与动态实验。",
     },
   },
   {
@@ -291,13 +453,13 @@ const PRELUDE_CHAPTERS = [
     card: {
       title: "AI 创作",
       en: "AI × DESIGN",
-      lead: "把设计判断写成能跑的产品。",
+      lead: "把设计判断做成能跑的产品。",
       stats: [
         ["小程序", "亲子成长记录"],
         ["工具", "声纹与创作工作台"],
         ["方法", "设计 × 提示词 × 前端"],
       ],
-      body: "这里不是概念稿，而是做过、跑过、持续迭代的个人产品，展示从想法到实现的完整距离。",
+      body: "做过、跑过、可打开。从构想到实现的完整链路。",
     },
   },
 ];
@@ -366,7 +528,7 @@ function loadingPhaseFor(progress) {
   return phase;
 }
 
-function LoadingScreen({ progress, canEnter, ready, error, backgroundReady, onRetry, onEnter }) {
+function LoadingScreen({ progress, canEnter, ready, error, backgroundReady, preludeReady, onRetry, onEnter, onChromeReveal, onFinish }) {
   const [leaving, setLeaving] = useState(false);
   const [waitedMs, setWaitedMs] = useState(0);
   const [principle, setPrinciple] = useState(null);
@@ -374,8 +536,64 @@ function LoadingScreen({ progress, canEnter, ready, error, backgroundReady, onRe
   const [railHover, setRailHover] = useState(null);
   const railLeaveTimerRef = useRef(0);
   const enteredOnceRef = useRef(false);
+  const loaderRef = useRef(null);
+  const entryVideoRef = useRef(null);
+  const entryFrameRef = useRef(0);
+  const entryTimeoutRef = useRef(0);
+  const entryFinishedRef = useRef(false);
+  const chromeRevealedRef = useRef(false);
+  const [entryPlaying, setEntryPlaying] = useState(false);
+  const [entryFrameReady, setEntryFrameReady] = useState(false);
+  const [entryBuffered, setEntryBuffered] = useState(false);
+  const [entryUnavailable, setEntryUnavailable] = useState(false);
+  // Mobile browsers often defer buffering until the visitor taps. Waiting for
+  // `canplaythrough` here falsely marks a valid video unavailable, so the
+  // intentional click itself starts playback.
+  const entryAvailable = canEnter;
+
+  useEffect(() => () => {
+    cancelAnimationFrame(entryFrameRef.current);
+    window.clearTimeout(entryTimeoutRef.current);
+  }, []);
+
+  const finishEntry = useCallback(() => {
+    if (entryFinishedRef.current) return;
+    entryFinishedRef.current = true;
+    // A skipped or failed film should still arrive at a complete homepage.
+    onChromeReveal?.();
+    cancelAnimationFrame(entryFrameRef.current);
+    window.clearTimeout(entryTimeoutRef.current);
+    onEnter?.();
+    // Also supplies a short, quiet exit if playback is unavailable.
+    loaderRef.current?.animate([{ opacity: getComputedStyle(loaderRef.current).opacity }, { opacity: 0 }], { duration: 180, fill: "forwards" });
+    entryTimeoutRef.current = window.setTimeout(onFinish, 180);
+  }, [onEnter, onChromeReveal, onFinish]);
+
+  const revealHome = useCallback(() => {
+    setEntryPlaying(true);
+    onEnter?.();
+    const tick = () => {
+      const video = entryVideoRef.current;
+      if (!video || entryFinishedRef.current) return;
+      // The encoded speed ramp settles at source speed before the late cloud dissolve.
+      const progress = Math.min(1, Math.max(0, (video.currentTime - 3.1) / Math.max(0.3, (video.duration || 4.1) - 3.1)));
+      const dissolve = progress * progress * (3 - 2 * progress);
+      // The ticket and chapter navigation belong to the homepage. Introduce
+      // them only as the final cloud dissolve begins, never on playback.
+      if (!chromeRevealedRef.current && progress > 0) {
+        chromeRevealedRef.current = true;
+        onChromeReveal?.();
+      }
+      if (loaderRef.current) loaderRef.current.style.opacity = String(1 - dissolve);
+      entryFrameRef.current = requestAnimationFrame(tick);
+    };
+    cancelAnimationFrame(entryFrameRef.current);
+    tick();
+  }, [onEnter, onChromeReveal]);
   const chapterIdx = preludeChapterIndex(progress);
-  const loadPhase = error
+  const loadPhase = !preludeReady
+    ? { en: "SETTING THE STAGE", zh: "正在呈现开场画面" }
+    : error
     ? { en: "CONNECTION HESITATED", zh: "连接犹豫了一下" }
     : loadingPhaseFor(progress);
   const titleText = PRELUDE_TITLES[titleIndex % PRELUDE_TITLES.length];
@@ -405,8 +623,17 @@ function LoadingScreen({ progress, canEnter, ready, error, backgroundReady, onRe
     if (leaving || enteredOnceRef.current) return;
     enteredOnceRef.current = true;
     setLeaving(true);
-    onEnter?.();
-  }, [leaving, onEnter]);
+    if (entryUnavailable || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finishEntry();
+      return;
+    }
+    // Start from the decoded poster; only reveal the homepage once video plays.
+    entryTimeoutRef.current = window.setTimeout(finishEntry, 8000);
+    const video = entryVideoRef.current;
+    if (!video) { finishEntry(); return; }
+    // Already paused on the decoded first frame: do not seek again on click.
+    video.play().catch(finishEntry);
+  }, [leaving, finishEntry, entryUnavailable]);
 
   const openRailCard = (id) => {
     window.clearTimeout(railLeaveTimerRef.current);
@@ -424,12 +651,31 @@ function LoadingScreen({ progress, canEnter, ready, error, backgroundReady, onRe
 
   return (
     <section
-      className={`lab-loader prelude${leaving ? " is-leaving" : ""}`}
+      ref={loaderRef}
+      className={`lab-loader prelude${leaving ? " is-leaving" : ""}${entryPlaying ? " is-playing" : ""}`}
       aria-live="polite"
       aria-label="序章"
     >
-      <div className="lab-loader__backdrop" />
+      <div className="lab-loader__backdrop">
+        <video
+          ref={entryVideoRef}
+          className={`lab-loader__entry-video${entryFrameReady ? " is-decoded" : ""}`}
+          src={preludeReady ? "/assets/video/cloud-entry-smooth.mp4" : undefined}
+          poster="/assets/video/cloud-entry-poster.webp"
+          preload="auto"
+          muted
+          playsInline
+          aria-hidden="true"
+          onLoadedData={() => setEntryFrameReady(true)}
+          onCanPlayThrough={() => setEntryBuffered(true)}
+          onPlaying={revealHome}
+          onEnded={finishEntry}
+          onError={() => { setEntryUnavailable(true); if (enteredOnceRef.current) finishEntry(); }}
+        />
+      </div>
+      {leaving && !entryPlaying && <p className="prelude-entry-status" role="status">正在推开云雾…</p>}
       <div className="lab-loader__grain" />
+      <LoadingCompanions canEnter={canEnter} />
 
       <button
         type="button"
@@ -500,15 +746,15 @@ function LoadingScreen({ progress, canEnter, ready, error, backgroundReady, onRe
             <button
               type="button"
               className="prelude-btn prelude-btn--primary"
-              disabled={!canEnter}
+              disabled={!entryAvailable}
               onClick={enter}
             >
-              {canEnter ? "ENTER NOW / 进入网站" : "准备中 / 请稍候"}
+              {entryAvailable ? "THE DOOR IS OPEN / 请进，别客气" : "DEVELOPING THE FILM / 镜头冲洗中"}
             </button>
           )}
           {canEnter && !backgroundReady && (
             <p className="prelude-actions__hint" role="status">
-              进入网站 · 剩余资源后台加载
+              可以先进来，其余画面会在后台继续准备
             </p>
           )}
         </div>
@@ -517,7 +763,7 @@ function LoadingScreen({ progress, canEnter, ready, error, backgroundReady, onRe
           className="prelude-rail-zone"
           onMouseLeave={scheduleCloseRailCard}
         >
-          <p className="prelude-rail-hint">等着也是等着，不如先了解一下我？</p>
+          <p className="prelude-rail-hint">加载的时候，先逛逛目录。</p>
           <nav className="prelude-rail" aria-label="站点章节预告">
             {PRELUDE_CHAPTERS.map((chapter, index) => (
               <Fragment key={chapter.id}>
@@ -622,102 +868,6 @@ const CASE_VISUAL_SUMMARIES = {
  * @param {number} pageCount total full-screen chapters (6).
  * @param {object} refs shared refs so programmatic navigation can suspend the magnet.
  */
-function useScrollSnap(pageCount, refs) {
-  useEffect(() => {
-    // On phones chapters follow their content height. Let native document
-    // scrolling stay free so snapping cannot trap long content or page six.
-    if (window.matchMedia("(max-width: 760px)").matches) return undefined;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-
-    const pageHeight = () => Math.max(1, window.innerHeight);
-    const maxScroll = () => pageHeight() * (pageCount - 1);
-    // Tight catch radius: only snap when already within ~6% of a page boundary.
-    const catchRadius = () => Math.round(pageHeight() * 0.06);
-
-    let idleTimer = 0;
-    let snapRaf = 0;
-    let snapping = false;
-
-    const nearestAlign = (y) => {
-      const page = Math.round(y / pageHeight());
-      return clamp(page, 0, pageCount - 1) * pageHeight();
-    };
-
-    const stopSnap = () => {
-      if (snapRaf) { window.cancelAnimationFrame(snapRaf); snapRaf = 0; }
-      if (snapping) {
-        snapping = false;
-        document.documentElement.classList.remove("is-snap-animating");
-      }
-    };
-
-    const snapTo = (targetY) => {
-      stopSnap();
-      const startY = window.scrollY;
-      const distance = targetY - startY;
-      if (Math.abs(distance) < 1) return;
-      snapping = true;
-      document.documentElement.classList.add("is-snap-animating");
-      const start = performance.now();
-      const duration = Math.min(360, 160 + Math.abs(distance) * 0.6);
-      const tick = (now) => {
-        const t = clamp((now - start) / duration, 0, 1);
-        const eased = 1 - Math.pow(1 - t, 3);
-        window.scrollTo(0, startY + distance * eased);
-        if (t < 1 && snapRaf) {
-          snapRaf = window.requestAnimationFrame(tick);
-        } else {
-          snapRaf = 0;
-          snapping = false;
-          document.documentElement.classList.remove("is-snap-animating");
-        }
-      };
-      snapRaf = window.requestAnimationFrame(tick);
-    };
-
-    const consider = () => {
-      if (snapping || refs.current.navigateProgrammatic) return;
-      const y = window.scrollY;
-      const target = Math.min(nearestAlign(y), maxScroll());
-      const drift = Math.abs(y - target);
-      // eslint-disable-next-line no-console
-      console.log("[snap] consider", { y: Math.round(y), target, drift: Math.round(drift), radius: catchRadius() });
-      // Only snap when ALREADY very close — a light polish, never a jump.
-      if (drift > 2 && drift <= catchRadius()) {
-        snapTo(target);
-      }
-    };
-
-    const schedule = () => {
-      window.clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(consider, 110);
-    };
-
-    // Fully passive — never intercept or redirect native scrolling.
-    const onScroll = () => { if (!snapping) schedule(); };
-    const onWheel = () => { if (!snapping) schedule(); };
-    const onTouchEnd = () => { if (!snapping) schedule(); };
-    const onKey = (e) => {
-      if (snapping) return;
-      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", " ", "Home", "End"].includes(e.key)) schedule();
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("wheel", onWheel, { passive: true });
-    window.addEventListener("touchend", onTouchEnd, { passive: true });
-    window.addEventListener("keydown", onKey);
-
-    return () => {
-      window.clearTimeout(idleTimer);
-      stopSnap();
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("wheel", onWheel);
-      window.removeEventListener("touchend", onTouchEnd);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [pageCount, refs]);
-}
-
 /** Smooth cubic arcs through content docks (Catmull-Rom style). */
 const buildArcPath = (points) => {
   if (points.length < 2) return "";
@@ -752,7 +902,7 @@ function NarrativeThread({ activeChapter }) {
 
     const width = window.innerWidth;
     const pageH = Math.max(1, window.innerHeight);
-    const height = pageH * 6;
+    const height = pageH * chapters.length;
     const scrollY = window.scrollY || window.pageYOffset;
 
     const docks = anchors.map((el, index) => {
@@ -896,6 +1046,8 @@ function CinematicBackdrop() {
     const warmController = new AbortController();
     let targetLoadInFlight = false;
     let requestedTarget = { segment: 0, frameIndex: 0 };
+    let requestedDirection = 1;
+    let paintedKey = null;
 
     const resizeCanvas = () => {
       if (!canvas || !context) return;
@@ -908,6 +1060,7 @@ function CinematicBackdrop() {
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
+        paintedKey = null;
         context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = "high";
       }
@@ -986,6 +1139,10 @@ function CinematicBackdrop() {
 
     const paintBitmap = (bitmap, segment, frameIndex) => {
       if (!bitmap || !context || !canvas) return;
+      const key = `${segment}-${frameIndex}`;
+      // Cached targets can reach this function twice per scroll event. Once
+      // page 06 is reached, the final frame also stays fixed through page 07.
+      if (paintedKey === key) return;
       const scale = Math.max(canvas.width / bitmap.width, canvas.height / bitmap.height);
       const width = bitmap.width * scale;
       const height = bitmap.height * scale;
@@ -996,6 +1153,7 @@ function CinematicBackdrop() {
       const y = clamp((canvas.height / 2) - (height * focalPoint.y), canvas.height - height, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(bitmap, x, y, width, height);
+      paintedKey = key;
       canvas.dataset.segment = String(segment + 1);
       canvas.dataset.frame = String(frameIndex + 1).padStart(4, "0");
       canvas.dataset.source = frameSource(segment, frameIndex);
@@ -1004,7 +1162,7 @@ function CinematicBackdrop() {
 
     const warmFrame = (segment, frameIndex) => {
       if (segment < 0 || segment > 4) return;
-      const bounded = clamp(frameIndex, 0, FRAME_COUNTS[segment] - 1);
+      const bounded = sampledFrameIndex(segment, frameIndex);
       if (pendingFramesRef.current.size >= 8) return;
       loadBitmap(segment, bounded, warmController.signal);
     };
@@ -1012,11 +1170,39 @@ function CinematicBackdrop() {
     const warmAround = (segment, frameIndex, direction) => {
       // Do not cancel this queue on every scroll tick: that was starving the
       // decoder exactly when a visitor started moving through the page.
-      for (let offset = 1; offset <= 16; offset += 1) warmFrame(segment, frameIndex + offset * direction);
-      for (let offset = 1; offset <= 5; offset += 1) warmFrame(segment, frameIndex - offset * direction);
+      for (let offset = FRAME_SAMPLE_STEP; offset <= 16 * FRAME_SAMPLE_STEP; offset += FRAME_SAMPLE_STEP) warmFrame(segment, frameIndex + offset * direction);
+      for (let offset = FRAME_SAMPLE_STEP; offset <= 5 * FRAME_SAMPLE_STEP; offset += FRAME_SAMPLE_STEP) warmFrame(segment, frameIndex - offset * direction);
       if (frameIndex > FRAME_COUNTS[segment] - 28) {
         for (let offset = 0; offset < 12; offset += 1) warmFrame(segment + 1, offset);
       }
+    };
+
+    // A network-cached WebP still needs decoding before Canvas can draw it.
+    // While the exact frame is decoding, paint the closest decoded neighbour so
+    // a fast wheel/trackpad gesture stays visibly continuous instead of holding
+    // one image until the final target arrives.
+    const paintClosestCachedFrame = (segment, frameIndex, direction) => {
+      const exactKey = `${segment}-${frameIndex}`;
+      const exact = bitmapCacheRef.current.get(exactKey);
+      if (exact) {
+        touchBitmap(exactKey, exact);
+        paintBitmap(exact, segment, frameIndex);
+        return true;
+      }
+
+      for (let offset = FRAME_SAMPLE_STEP; offset <= 18 * FRAME_SAMPLE_STEP; offset += FRAME_SAMPLE_STEP) {
+        const preferredIndex = sampledFrameIndex(segment, frameIndex - offset * direction);
+        const alternateIndex = sampledFrameIndex(segment, frameIndex + offset * direction);
+        for (const candidateIndex of [preferredIndex, alternateIndex]) {
+          const key = `${segment}-${candidateIndex}`;
+          const bitmap = bitmapCacheRef.current.get(key);
+          if (!bitmap) continue;
+          touchBitmap(key, bitmap);
+          paintBitmap(bitmap, segment, candidateIndex);
+          return true;
+        }
+      }
+      return false;
     };
 
     const resolveLatestTarget = () => {
@@ -1035,18 +1221,24 @@ function CinematicBackdrop() {
         }).finally(() => {
           targetLoadInFlight = false;
           const latestKey = `${requestedTarget.segment}-${requestedTarget.frameIndex}`;
-          if (!disposed && latestKey !== key) resolveLatestTarget();
+          if (!disposed && latestKey !== key) {
+            resolveLatestTarget();
+            warmAround(requestedTarget.segment, requestedTarget.frameIndex, requestedDirection);
+          }
         });
       }
-      const direction = segment === lastSegment ? Math.sign(frameIndex - lastFrameIndex) || 1 : 1;
-      warmAround(segment, frameIndex, direction);
     };
 
     const requestFrame = (segment, frameIndex) => {
+      frameIndex = sampledFrameIndex(segment, frameIndex);
+      const direction = segment === lastSegment ? Math.sign(frameIndex - lastFrameIndex) || requestedDirection : 1;
       const key = `${segment}-${frameIndex}`;
       targetKeyRef.current = key;
       requestedTarget = { segment, frameIndex };
+      requestedDirection = direction;
+      paintClosestCachedFrame(segment, frameIndex, direction);
       resolveLatestTarget();
+      warmAround(segment, frameIndex, direction);
       lastSegment = segment;
       lastFrameIndex = frameIndex;
     };
@@ -1057,7 +1249,7 @@ function CinematicBackdrop() {
     const syncFrame = () => {
       frameRequest = 0;
       const pageHeight = Math.max(1, window.innerHeight);
-      const rawPage = window.scrollY / pageHeight;
+      const rawPage = Math.min(window.scrollY / pageHeight, 5);
       const segment = clamp(Math.floor(rawPage), 0, 4);
       const local = segment === 4 && rawPage >= 5 ? 1 : clamp(rawPage - segment, 0, 1);
       const frameIndex = Math.round(local * (FRAME_COUNTS[segment] - 1));
@@ -1154,7 +1346,7 @@ function Navigation({ activeChapter, onNavigate, onMenuChange }) {
           </a>
         ))}
       </div>
-      <div className="nav-footer"><span>NARRATIVE THREAD</span><small>06 SCENES</small></div>
+      <div className="nav-footer"><span>NARRATIVE THREAD</span><small>{String(chapters.length).padStart(2, "0")} SCENES</small></div>
     </nav>
   );
 }
@@ -1182,9 +1374,9 @@ function FixedClose({ onClose, level = 500 }) {
 
 function ChapterIndex({ index }) {
   return (
-    <div className="chapter-index" aria-label={`第 ${index + 1} 页，共 6 页`}>
+    <div className="chapter-index" aria-label={`第 ${index + 1} 页，共 ${chapters.length} 页`}>
       <strong>{String(index + 1).padStart(2, "0")}</strong>
-      <span>{String(index + 1).padStart(2, "0")} / 06</span>
+      <span>{String(index + 1).padStart(2, "0")} / {String(chapters.length).padStart(2, "0")}</span>
     </div>
   );
 }
@@ -1196,7 +1388,7 @@ function GuideLine({ activeChapter }) {
   useLayoutEffect(() => {
     const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
     timeline
-      .to(dotRef.current, { left: `${(activeChapter / 5) * 100}%`, duration: 0.8, ease: "expo.inOut" })
+      .to(dotRef.current, { left: `${(activeChapter / (chapters.length - 1)) * 100}%`, duration: 0.8, ease: "expo.inOut" })
       .fromTo(dotRef.current, { scale: 2.2 }, { scale: 1, duration: 0.65, ease: "elastic.out(1, .45)" }, "<0.18")
       .fromTo(labelRef.current, { y: 7, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35 }, "<0.05");
     return () => timeline.kill();
@@ -1424,20 +1616,133 @@ function PoNow({ now, signal, tags }) {
   );
 }
 
-function ProfileOverlay({ onClose }) {
+const PROFILE_TAG_ZH = {
+  "PRODUCT DESIGN": "产品设计",
+  "DESIGN SYSTEM": "设计系统",
+  "ENTERPRISE UX": "企业体验",
+  "AI PRODUCT": "AI 产品",
+};
+const PROFILE_CAP_ZH = {
+  PRODUCT: "产品",
+  SYSTEM: "系统",
+  EXPERIENCE: "体验",
+  BUILD: "构建",
+  VISUAL: "视觉",
+};
+const PROFILE_FLOW_ZH = {
+  Research: "研究",
+  Define: "定义",
+  Design: "设计",
+  Prototype: "原型",
+  Code: "实现",
+  Validate: "验证",
+};
+const PROFILE_BEYOND_ZH = {
+  Travel: "旅行",
+  Music: "音乐",
+  Photography: "摄影",
+  "AI Exploration": "AI 探索",
+};
+
+function ProfileOverlay({ onClose, copy, profileData }) {
   const rootRef = useRef(null);
+  const innerRef = useRef(null);
   useCloseOnPortfolioNavigate(onClose);
 
   useLayoutEffect(() => {
+    const root = rootRef.current;
+    const inner = innerRef.current;
+    if (!root || !inner) return undefined;
     document.body.classList.add("modal-open");
     const closeOnEscape = (event) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", closeOnEscape);
-    const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
-    timeline
-      .fromTo(rootRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 })
-      .fromTo(rootRef.current.querySelectorAll(".pm"), { y: 30 }, { y: 0, duration: 0.65, stagger: 0.07 }, "<0.08");
+
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const cleanups = [];
+    const ctx = gsap.context(() => {
+      gsap.set(root, { autoAlpha: 1 });
+      if (reduce) return;
+
+      gsap.timeline({ defaults: { ease: "power4.out" } })
+        .fromTo(root, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.35 })
+        .fromTo(".po-progress", { autoAlpha: 0, x: -12 }, { autoAlpha: 1, x: 0, duration: 0.45 }, 0.05)
+        .fromTo(".po-hero__name i", { yPercent: 120, rotateX: -50 }, { yPercent: 0, rotateX: 0, duration: 0.8, stagger: 0.08 }, 0.12)
+        .fromTo(".po-hero__role, .po-head__lead, .po-hero__tags li", { y: 22, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.55, stagger: 0.05 }, 0.28)
+        .fromTo(".po-hero__ticket", { x: 40, autoAlpha: 0, rotateZ: 2 }, { x: 0, autoAlpha: 1, rotateZ: 0, duration: 0.7 }, 0.22)
+        .fromTo(".po-info > div", { y: 36, autoAlpha: 0, rotateX: 12 }, { y: 0, autoAlpha: 1, rotateX: 0, duration: 0.55, stagger: 0.045 }, 0.32);
+
+      gsap.to(".po-progress__fill", {
+        scaleY: 1,
+        ease: "none",
+        scrollTrigger: {
+          scroller: root,
+          trigger: inner,
+          start: "top top",
+          end: "bottom bottom",
+          scrub: 0.35,
+        },
+      });
+
+      inner.querySelectorAll(".po-reveal").forEach((section) => {
+        gsap.from(section.querySelectorAll(".po-reveal-item"), {
+          y: 42,
+          autoAlpha: 0,
+          duration: 0.7,
+          stagger: 0.08,
+          ease: "power3.out",
+          scrollTrigger: { scroller: root, trigger: section, start: "top 84%", once: true },
+        });
+      });
+
+      gsap.from(".po-timeline__line", {
+        scaleY: 0,
+        transformOrigin: "top center",
+        duration: 1.1,
+        ease: "power2.out",
+        scrollTrigger: { scroller: root, trigger: ".po-timeline", start: "top 80%", once: true },
+      });
+
+      const steps = gsap.utils.toArray(".po-workflow__steps li");
+      const cycle = gsap.timeline({ repeat: -1 });
+      steps.forEach((step, index) => {
+        cycle
+          .to(step, { backgroundColor: "rgba(243,198,0,.16)", borderColor: "rgba(243,198,0,.45)", color: "#f3c600", duration: 0.28 }, index * 0.7)
+          .to(step, { backgroundColor: "rgba(255,255,255,.045)", borderColor: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.8)", duration: 0.4 }, index * 0.7 + 0.45);
+      });
+      const pauseCycle = () => cycle.pause();
+      const playCycle = () => cycle.play();
+      steps.forEach((step) => {
+        step.addEventListener("pointerenter", pauseCycle);
+        step.addEventListener("pointerleave", playCycle);
+      });
+      cleanups.push(() => {
+        steps.forEach((step) => {
+          step.removeEventListener("pointerenter", pauseCycle);
+          step.removeEventListener("pointerleave", playCycle);
+        });
+      });
+
+      gsap.utils.toArray(".po-magnet").forEach((el) => {
+        const xTo = gsap.quickTo(el, "x", { duration: 0.32, ease: "power3.out" });
+        const yTo = gsap.quickTo(el, "y", { duration: 0.32, ease: "power3.out" });
+        const onMove = (event) => {
+          const box = el.getBoundingClientRect();
+          xTo((event.clientX - (box.left + box.width / 2)) * 0.025);
+          yTo((event.clientY - (box.top + box.height / 2)) * 0.04);
+        };
+        const reset = () => { xTo(0); yTo(0); };
+        el.addEventListener("pointermove", onMove);
+        el.addEventListener("pointerleave", reset);
+        cleanups.push(() => {
+          el.removeEventListener("pointermove", onMove);
+          el.removeEventListener("pointerleave", reset);
+        });
+      });
+    }, root);
+
     return () => {
-      timeline.kill();
+      cleanups.forEach((fn) => fn());
+      ctx.revert();
       window.removeEventListener("keydown", closeOnEscape);
       document.body.classList.remove("modal-open");
     };
@@ -1446,27 +1751,50 @@ function ProfileOverlay({ onClose }) {
   return createPortal(
     <div ref={rootRef} className="profile-overlay" role="dialog" aria-modal="true" aria-label="个人档案" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <FixedClose onClose={onClose} />
-      <div className="profile-overlay__inner" onClick={(e) => e.stopPropagation()}>
-        <header className="po-head pm">
-          <p className="eyebrow">PROFILE / ZEN.TANG</p>
-          <h2>{profile.heroRole}</h2>
-          <p className="po-head__lead">{profile.philosophy.lead}</p>
+      <div className="po-progress" aria-hidden="true"><i className="po-progress__fill" /></div>
+      <div className="profile-overlay__inner" ref={innerRef} onClick={(e) => e.stopPropagation()}>
+        <header className="po-hero">
+          <div className="po-hero__copy">
+            <p className="eyebrow">{copy.modal.eyebrow}</p>
+            <h2>
+              <span className="po-hero__name" aria-label="唐启东">{Array.from("唐启东").map((ch, i) => <i key={i}>{ch}</i>)}</span>
+              <span className="po-hero__role">{profileData.heroRole} / 产品设计负责人 · 设计系统 · AI 构建</span>
+            </h2>
+            <p className="po-head__lead">{profileData.philosophy.lead}</p>
+            <ul className="po-hero__tags">
+              {profileData.heroTags.map((tag) => <li key={tag}>{tag} / {PROFILE_TAG_ZH[tag] || tag}</li>)}
+            </ul>
+          </div>
+          <aside className="po-hero__ticket po-magnet">
+            <small>CURRENT POST / 在职</small>
+            <strong>湖南云畅网络科技有限公司</strong>
+            <p>在职 · 2015—至今</p>
+            <div className="po-hero__ticket-meta">
+              <span><b>10+</b>YEARS / 年</span>
+              <span><b>CS</b>CHANGSHA / 长沙</span>
+            </div>
+          </aside>
         </header>
 
-        <section className="po-info pm">
-          {profile.info.map(([k, v]) => (
-            <div key={k}><small>{k}</small><b>{v}</b></div>
+        <section className="po-info">
+          {profileData.info.filter(([k]) => !["公司", "状态", "任职时间"].includes(k)).map(([k, v], i) => (
+            <div className="po-magnet" key={k}>
+              <em>{String(i + 1).padStart(2, "0")}</em>
+              <small>{k}</small>
+              <b>{v}</b>
+            </div>
           ))}
         </section>
 
-        <section className="po-block pm">
-          <header className="po-block__head"><span>01</span><h3>设计理念</h3><small>PHILOSOPHY</small></header>
+        <section className="po-block po-reveal">
+          <header className="po-block__head po-reveal-item"><span>01</span><h3>设计理念</h3><small>PHILOSOPHY / 设计理念</small></header>
           <div className="po-pillars">
-            {profile.philosophy.pillars.map((p) => (
-              <article key={p.title}>
+            {profileData.philosophy.pillars.map((p, i) => (
+              <article className="po-magnet po-reveal-item" key={p.title}>
+                <b className="po-pillar__no">{String(i + 1).padStart(2, "0")}</b>
                 <LineIcon name={p.icon} className="po-pillar__icon" />
                 <div>
-                  <small>{p.en}</small>
+                  <small>{p.en} / {p.title}</small>
                   <strong>{p.title}</strong>
                 </div>
                 <p>{p.desc}</p>
@@ -1475,12 +1803,12 @@ function ProfileOverlay({ onClose }) {
           </div>
         </section>
 
-        <section className="po-block pm">
-          <header className="po-block__head"><span>02</span><h3>能力矩阵</h3><small>CAPABILITY</small></header>
+        <section className="po-block po-reveal">
+          <header className="po-block__head po-reveal-item"><span>02</span><h3>能力矩阵</h3><small>CAPABILITY / 能力矩阵</small></header>
           <div className="po-caps">
-            {profile.capabilities.map((cap) => (
-              <article key={cap.group}>
-                <header><LineIcon name={cap.icon} className="po-cap__icon" /><h4>{cap.group}</h4></header>
+            {profileData.capabilities.map((cap) => (
+              <article className="po-reveal-item" key={cap.group}>
+                <header><LineIcon name={cap.icon} className="po-cap__icon" /><h4>{cap.group} / {PROFILE_CAP_ZH[cap.group] || cap.group}</h4></header>
                 <ul>{cap.items.map((it) => <li key={it}><i className="po-dot" aria-hidden="true" />{it}</li>)}</ul>
               </article>
             ))}
@@ -1488,11 +1816,12 @@ function ProfileOverlay({ onClose }) {
         </section>
 
         <div className="po-split">
-          <section className="po-block pm">
-            <header className="po-block__head"><span>03</span><h3>工作时间线</h3><small>EXPERIENCE</small></header>
+          <section className="po-block po-reveal">
+            <header className="po-block__head po-reveal-item"><span>03</span><h3>工作时间线</h3><small>EXPERIENCE / 工作时间线</small></header>
             <ol className="po-timeline">
-              {profile.timeline.map(([year, title, desc]) => (
-                <li key={year}>
+              <i className="po-timeline__line" aria-hidden="true" />
+              {profileData.timeline.map(([year, title, desc]) => (
+                <li className="po-reveal-item" key={year}>
                   <b>{year}</b>
                   <div><strong>{title}</strong><small>{desc}</small></div>
                 </li>
@@ -1500,47 +1829,49 @@ function ProfileOverlay({ onClose }) {
             </ol>
           </section>
 
-          <section className="po-block pm">
-            <header className="po-block__head"><span>04</span><h3>设计方法</h3><small>WORKFLOW</small></header>
-            <div className="po-workflow">
+          <section className="po-block po-reveal">
+            <header className="po-block__head po-reveal-item"><span>04</span><h3>设计方法</h3><small>WORKFLOW / 设计方法</small></header>
+            <div className="po-workflow po-reveal-item">
               <ol className="po-workflow__steps">
-                {profile.workflow.map((step, i) => (
-                  <li key={step}>{step}{i < profile.workflow.length - 1 && <span aria-hidden="true">→</span>}</li>
+                {profileData.workflow.map((step, i) => (
+                  <li key={step}><em>{String(i + 1).padStart(2, "0")}</em>{step} / {PROFILE_FLOW_ZH[step] || step}</li>
                 ))}
               </ol>
-              <p>{profile.workflowDesc}</p>
+              <p>{profileData.workflowDesc}</p>
             </div>
           </section>
         </div>
 
-        <section className="po-block pm">
-          <header className="po-block__head"><span>05</span><h3>工具与技术栈</h3><small>STACK</small></header>
+        <section className="po-block po-reveal">
+          <header className="po-block__head po-reveal-item"><span>05</span><h3>工具与技术栈</h3><small>STACK / 工具与技术栈</small></header>
           <div className="po-stack">
-            {profile.stack.map((s) => (
-              <div key={s.group}>
-                <small>{s.group}</small>
+            {profileData.stack.map((s) => (
+              <div className="po-reveal-item" key={s.group}>
+                <small>{s.group} / {s.group === "Design" ? "设计" : s.group === "Development" ? "开发" : "人工智能"}</small>
                 <ul>{s.items.map((it) => <li key={it}><i className="po-dot" aria-hidden="true" />{it}</li>)}</ul>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="po-block pm">
-          <header className="po-block__head"><span>06</span><h3>设计之外</h3><small>BEYOND DESIGN</small></header>
+        <section className="po-block po-reveal">
+          <header className="po-block__head po-reveal-item"><span>06</span><h3>设计之外</h3><small>BEYOND DESIGN / 设计之外</small></header>
           <div className="po-beyond">
-            {profile.beyond.map((b) => (
-              <article key={b.title}>
+            {profileData.beyond.map((b) => (
+              <article className="po-magnet po-reveal-item" key={b.title}>
                 <LineIcon name={b.icon} className="po-beyond__icon" />
-                <strong>{b.title}</strong>
+                <strong>{b.title} / {PROFILE_BEYOND_ZH[b.title] || b.title}</strong>
                 <small>{b.desc}</small>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="po-block pm">
-          <header className="po-block__head"><span>07</span><h3>正在关注</h3><small>NOW</small></header>
-          <PoNow now={profile.now} signal={profile.nowSignal} tags={profile.nowTags} />
+        <section className="po-block po-reveal">
+          <header className="po-block__head po-reveal-item"><span>07</span><h3>正在关注</h3><small>NOW / 正在关注</small></header>
+          <div className="po-reveal-item">
+            <PoNow now={profileData.now} signal={profileData.nowSignal || "NOW TRACKING / 正在关注"} tags={profileData.nowTags} />
+          </div>
         </section>
       </div>
     </div>,
@@ -1548,34 +1879,34 @@ function ProfileOverlay({ onClose }) {
   );
 }
 
-function AboutSection() {
+function AboutSection({ copy, profileData }) {
   const [open, setOpen] = useState(false);
 
   return (
     <section className="chapter chapter-about" id="about" data-chapter="0">
       <div className="chapter-copy chapter-copy--bottom-right" data-narrative-anchor="about" data-thread-x="0.12" data-thread-y="0.12">
-        <p className="eyebrow motion-item" data-motion="dropIn">PRODUCT DESIGNER · DESIGNER & BUILDER</p>
-        <h1 className="motion-item hero-name" data-motion="heroZoom">{profile.heroName}</h1>
+        <p className="eyebrow motion-item" data-motion="dropIn">{copy.eyebrow}</p>
+        <h1 className="motion-item hero-name" data-motion="heroZoom">{copy.pageTitle}</h1>
         <div className="hero-divider motion-item" data-motion="lineDraw" />
-        <p className="chapter-summary chapter-summary--lead motion-item" data-motion="riseSoft">{profile.heroLine}</p>
+        <p className="chapter-summary chapter-summary--lead motion-item" data-motion="riseSoft">{copy.description}</p>
         <ul className="hero-tags motion-item" data-motion="fromLeft">
-          {profile.heroTags.map((tag) => <li key={tag}><LineIcon name="ai" className="hero-tag__icon" />{tag}</li>)}
+          {profileData.heroTags.map((tag) => <li key={tag}><LineIcon name="ai" className="hero-tag__icon" />{tag}</li>)}
         </ul>
         <div className="micro-content-list micro-content-list--stats motion-item" data-motion="fromRight">
-          {profile.stats.map(([value, label]) => <button type="button" key={label} onClick={() => setOpen(true)}><strong>{value}</strong><span>{label}</span><small>+</small></button>)}
+          {profileData.stats.map(([value, label]) => <button type="button" key={label} onClick={() => setOpen(true)}><strong>{value}</strong><span>{label}</span><small>+</small></button>)}
         </div>
         <button className="hero-cta motion-item" data-motion="zoomPop" type="button" onClick={() => setOpen(true)}>
-          <span>{profile.cta}</span>
+          <span>{copy.buttonText}</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </button>
       </div>
       <p className="motion-hint">SCROLL DOWN · FRAME BY FRAME</p>
-      {open && <ProfileOverlay onClose={() => setOpen(false)} />}
+      {open && <ProfileOverlay copy={copy} profileData={profileData} onClose={() => setOpen(false)} />}
     </section>
   );
 }
 
-function CareerStageDetail({ onClose }) {
+function CareerStageDetail({ onClose, copy, careerData }) {
   const rootRef = useRef(null);
   useCloseOnPortfolioNavigate(onClose);
 
@@ -1599,12 +1930,12 @@ function CareerStageDetail({ onClose }) {
       <FixedClose onClose={onClose} />
       <div className="career-overlay__inner">
         <header className="career-overlay__head cm">
-          <p className="eyebrow">CAREER TIMELINE / 2015—NOW</p>
-          <h2>四个阶段，一条成长路径。</h2>
+          <p className="eyebrow">{copy.modal.eyebrow}</p>
+          <h2>{copy.modal.title}</h2>
         </header>
 
         <div className="career-line">
-          {career.map((stage, index) => (
+          {careerData.map((stage, index) => (
             <div className="career-line__stage cm" key={stage.version}>
               <div className="career-line__top">
                 <span className="career-line__ver">{stage.version}</span>
@@ -1631,7 +1962,7 @@ function CareerStageDetail({ onClose }) {
 
               <blockquote className="career-line__lesson">{stage.lesson}</blockquote>
 
-              {index < career.length - 1 && (
+              {index < careerData.length - 1 && (
                 <div className="career-line__shift" aria-hidden="true">
                   <small className="career-line__shift-label">NEXT STAGE</small>
                   <span className="career-line__arrow">▶▶▶</span>
@@ -1646,18 +1977,19 @@ function CareerStageDetail({ onClose }) {
   );
 }
 
-function ExperienceSection() {
+function ExperienceSection({ copy, careerData }) {
   const [open, setOpen] = useState(false);
   return (
     <section className="chapter chapter-experience" id="experience" data-chapter="1">
       <div className="experience-panel scene-panel" data-narrative-anchor="experience" data-thread-x="0.92" data-thread-y="0.12">
         <header className="scene-heading motion-item" data-motion="fromLeft">
-          <p className="eyebrow">EXPERIENCE / 2015—NOW</p>
-          <h2>从做好界面，到推动产品体验。</h2>
-          <p>十余年里，角色在变，但核心一直是把复杂问题变清楚，把设计推进到真实产品。</p>
+          <p className="eyebrow">{copy.eyebrow}</p>
+          <h2>{copy.pageTitle}</h2>
+          <p>{copy.description}</p>
+          <p>{copy.story}</p>
         </header>
         <div className="experience-card-grid motion-item" data-motion="fanSplit">
-          {career.map((item) => (
+          {careerData.map((item) => (
             <button type="button" className="experience-card interactive-card" key={item.version} onClick={() => setOpen(true)}>
               <span>{item.version}</span><small className="experience-card__year" aria-hidden="true">{item.period}</small><h3>{item.role}</h3><p>{item.note}</p>
               <ul className="experience-card__tags">
@@ -1667,7 +1999,7 @@ function ExperienceSection() {
           ))}
         </div>
       </div>
-      {open && <CareerStageDetail onClose={() => setOpen(false)} />}
+      {open && <CareerStageDetail copy={copy} careerData={careerData} onClose={() => setOpen(false)} />}
     </section>
   );
 }
@@ -1688,12 +2020,18 @@ const marqueeLaunch = (track, direction, durationIndex) => {
   let frameId;
   let disposed = false;
   const images = Array.from(track.querySelectorAll("img"));
-  const ready = images.map((img) => img.complete
-    ? Promise.resolve()
-    : new Promise((resolve) => {
-        img.addEventListener("load", resolve, { once: true });
-        img.addEventListener("error", resolve, { once: true });
-      }));
+  // `load` can fire in the tiny interval between checking `complete` and
+  // attaching a listener, leaving the loop permanently unstarted. `decode()`
+  // follows the image's current responsive candidate and remains awaitable
+  // whether that candidate is already complete or still downloading.
+  const ready = images.map((img) => {
+    if (typeof img.decode === "function") return img.decode().catch(() => {});
+    if (img.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      img.addEventListener("load", resolve, { once: true });
+      img.addEventListener("error", resolve, { once: true });
+    });
+  });
 
   Promise.all(ready).then(() => {
     if (disposed) return;
@@ -1746,7 +2084,7 @@ function VerticalImageStrips({ module, onPreview }) {
             <div className="vertical-strip__track" onMouseEnter={pauseColumn} onMouseLeave={resumeColumn}>
               {[...loopUnit, ...loopUnit].map((src, index) => (
                 <button type="button" key={`${src}-${columnIndex}-${index}`} onClick={() => onPreview?.({ src, module })}>
-                  <img src={src} alt={`${module.title} 界面示例 ${index % loopUnit.length + 1}`} />
+                  <ResponsiveImage src={src} sizes="(max-width: 760px) 33vw, 280px" loading="eager" alt={`${module.title} 界面示例 ${index % loopUnit.length + 1}`} />
                   <span>{module.index}</span>
                 </button>
               ))}
@@ -1758,22 +2096,25 @@ function VerticalImageStrips({ module, onPreview }) {
   );
 }
 
-function SystemSection() {
-  const [active, setActive] = useState(2);
+function SystemSection({ modules, copy }) {
+  const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState(null);
-  const module = systemModules[active];
+  const module = modules[active];
   useEffect(() => {
     const close = () => { setOpen(false); setPreview(null); };
     window.addEventListener("portfolio:navigate", close);
     return () => window.removeEventListener("portfolio:navigate", close);
   }, []);
+  useEffect(() => {
+    setActive((index) => Math.min(index, Math.max(0, modules.length - 1)));
+  }, [modules.length]);
 
   return (
     <section className="chapter chapter-system" id="wanying" data-chapter="2">
       <div className="system-screen-ui motion-item" data-motion="panelDock" data-narrative-anchor="system" data-thread-x="0.08" data-thread-y="0.12">
         <header className="system-screen-ui__header">
-          <div><p className="eyebrow">WANYING DESIGN SYSTEM</p><h2>让复杂产品，共享同一种语言。</h2><p className="system-screen-ui__sub">万应低代码设计系统 · 从 Token 到组件到治理的完整构建实践</p></div>
+          <div><p className="eyebrow">{copy.eyebrow}</p><h2>{copy.pageTitle}</h2><p className="system-screen-ui__sub">{copy.description}</p></div>
           <div className="system-status"><span>05 MODULES</span><span>LIVE LIBRARY</span><small>DESIGN × CODE × GOVERNANCE</small></div>
         </header>
         <div className="system-screen-ui__body">
@@ -1788,7 +2129,7 @@ function SystemSection() {
             </div>
             <p className="system-screen-tabs__hint" aria-hidden="true">横向滑动切换模块 <span>→</span></p>
             <div className="system-screen-tabs" role="tablist" aria-label="万应设计系统示例">
-              {systemModules.map((item, index) => <button type="button" role="tab" aria-selected={active === index} className={active === index ? "is-active" : ""} key={item.id} onClick={() => setActive(index)}><span>{item.index}</span><strong>{item.tabEn}</strong><div className="system-screen-tabs__sub"><small>{item.tabLabel}</small><i>{item.caption}</i></div></button>)}
+              {modules.map((item, index) => <button type="button" role="tab" aria-selected={active === index} className={active === index ? "is-active" : ""} key={item.id} onClick={() => setActive(index)}><span>{item.index}</span><strong>{item.tabEn}</strong><div className="system-screen-tabs__sub"><small>{item.tabLabel}</small><i>{item.caption}</i></div></button>)}
             </div>
           </aside>
         </div>
@@ -1800,14 +2141,14 @@ function SystemSection() {
         </div>
       )}
       {open && (
-        <InfoOverlay eyebrow="WANYING / 05 MODULES" title="设计系统全景" onClose={() => setOpen(false)} className="system-overlay">
+        <InfoOverlay eyebrow={copy.modal.eyebrow} title={copy.modal.title} onClose={() => setOpen(false)} className="system-overlay">
           <div className="system-detail-stage">
             <div className="system-detail-media">
-              <img src={module.image} alt={`${module.title} 展示`} />
+              <ResponsiveImage src={module.image} sizes="(max-width: 760px) 92vw, 55vw" alt={`${module.title} 展示`} />
               <p>{module.description}</p>
             </div>
             <div className="system-detail-tabs" role="tablist" aria-label="万应设计系统模块">
-              {systemModules.map((item, index) => (
+              {modules.map((item, index) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1838,7 +2179,7 @@ function ProjectGallery({ project, onOpen }) {
 
   const images = project.gallery?.length ? project.gallery : [project.image];
   return (
-    <div className={`detail-gallery detail-gallery--${project.caseStyle || "default"}`} ref={rootRef} style={{ "--gallery-backdrop": `url("${project.image}")` }}>
+    <div className={`detail-gallery detail-gallery--${project.caseStyle || "default"}`} ref={rootRef} style={{ "--gallery-backdrop": `url("${responsiveImageUrl(project.image)}")` }}>
       <div className="detail-gallery__columns">
         {[0, 1, 2].map((columnIndex) => {
           const shifted = [...images.slice(columnIndex), ...images.slice(0, columnIndex)];
@@ -1847,7 +2188,7 @@ function ProjectGallery({ project, onOpen }) {
             : shifted;
           const stream = columnImages.length ? columnImages : images;
           const loopUnit = fillLoopUnit(stream);
-          return <div className="detail-gallery__column" key={columnIndex}><div className="detail-gallery__track">{[...loopUnit, ...loopUnit].map((src, index) => <button type="button" key={`${src}-${columnIndex}-${index}`} onClick={() => onOpen(src)}><img src={src} alt={`${project.title} UI ${index % loopUnit.length + 1}`} /></button>)}</div></div>;
+          return <div className="detail-gallery__column" key={columnIndex}><div className="detail-gallery__track">{[...loopUnit, ...loopUnit].map((src, index) => <button type="button" key={`${src}-${columnIndex}-${index}`} onClick={() => onOpen(src)}><ResponsiveImage src={src} sizes="(max-width: 760px) 33vw, 18vw" loading="eager" alt={`${project.title} UI ${index % loopUnit.length + 1}`} /></button>)}</div></div>;
         })}
       </div>
       <p>{project.caseStyle === "website" ? "WEB PAGES · MIXED-LENGTH STREAMS" : "UI ARCHIVE · 03 VERTICAL STREAMS"}</p>
@@ -1885,7 +2226,205 @@ function CapabilityRadar({ data }) {
   );
 }
 
-function ProjectDetail({ project, onClose }) {
+function InquiryKey() {
+  return (
+    <div className="inq-key" aria-hidden="true">
+      <span><b>01</b>他们关心什么</span>
+      <i />
+      <span><b>02</b>我如何判断</span>
+      <i />
+      <span><b>03</b>做成什么效果</span>
+    </div>
+  );
+}
+
+function InquiryMethods({ methods }) {
+  if (!methods?.length) return null;
+  return (
+    <ul className="inq-methods">
+      {methods.map((item) => (
+        <li key={item.method}><small>{item.method}</small><b>{item.sample}</b></li>
+      ))}
+    </ul>
+  );
+}
+
+function InquiryEffects({ effects }) {
+  if (!effects?.length) return null;
+  return (
+    <div className="inq-effect">
+      {effects.map((item) => (
+        <span key={item.label}><b>{item.value}</b><small>{item.label}</small></span>
+      ))}
+    </div>
+  );
+}
+
+function InquiryJourney({ inquiry }) {
+  return (
+    <div className="inq inq-journey">
+      <div className="inq-cast">
+        {inquiry.cares.map((item) => (
+          <article key={item.who}>
+            <small>{item.who}</small>
+            <strong>{item.ask}</strong>
+            <em>{item.move}</em>
+          </article>
+        ))}
+      </div>
+      <div className="inq-compress">
+        <div>
+          <small>BEFORE · 跨渠道</small>
+          <ol>{inquiry.before.map((node) => <li key={node}>{node}</li>)}</ol>
+        </div>
+        <ArrowRight size={18} strokeWidth={1.7} aria-hidden="true" />
+        <div>
+          <small>AFTER · 产品内闭环</small>
+          <ol className="is-after">{inquiry.after.map((node) => <li key={node}>{node}</li>)}</ol>
+        </div>
+      </div>
+      <div className="inq-think">
+        {inquiry.thinking.map((item) => (
+          <article key={item.title}><strong>{item.title}</strong><p>{item.desc}</p></article>
+        ))}
+      </div>
+      <InquiryEffects effects={inquiry.effects} />
+    </div>
+  );
+}
+
+function InquirySystem({ inquiry }) {
+  return (
+    <div className="inq inq-system">
+      <div className="inq-matrix" role="table" aria-label="角色关心与解法">
+        <div className="inq-matrix__head" role="row">
+          <span>角色</span><span>关心什么</span><span>我怎么解</span>
+        </div>
+        {inquiry.cares.map((item) => (
+          <div className="inq-matrix__row" role="row" key={item.who}>
+            <b>{item.who}</b>
+            <span>{item.ask}</span>
+            <em>{item.move}</em>
+          </div>
+        ))}
+      </div>
+      <div className="inq-rails">
+        {(inquiry.rails || []).map((rail) => (
+          <div key={rail.name}>
+            <small>{rail.name}</small>
+            <ol>{rail.nodes.map((node) => <li key={node}>{node}</li>)}</ol>
+          </div>
+        ))}
+      </div>
+      <div className="inq-think inq-think--row">
+        {inquiry.thinking.map((item) => (
+          <article key={item.title}><strong>{item.title}</strong><p>{item.desc}</p></article>
+        ))}
+      </div>
+      <InquiryEffects effects={inquiry.effects} />
+    </div>
+  );
+}
+
+function InquiryNarrative({ inquiry }) {
+  const layers = inquiry.layers || [];
+  return (
+    <div className="inq inq-narrative">
+      <div className="inq-heatmap" role="table" aria-label="角色 × 内容层级">
+        <div className="inq-heatmap__head" role="row">
+          <span>角色 / 层级</span>
+          {layers.map((layer) => <span key={layer}>{layer}</span>)}
+        </div>
+        {inquiry.cares.map((item) => (
+          <div className="inq-heatmap__row" role="row" key={item.who}>
+            <div>
+              <b>{item.who}</b>
+              <small>{item.ask}</small>
+            </div>
+            {layers.map((layer, index) => (
+              <em key={layer} className={item.focus?.[index] ? "is-on" : "is-off"} aria-label={`${layer}${item.focus?.[index] ? " 需要" : " 次要"}`}>
+                {item.focus?.[index] ? "●" : "○"}
+              </em>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="inq-funnel">
+        {(inquiry.funnel || []).map((step, index) => (
+          <span key={step} style={{ "--funnel-w": `${100 - index * 14}%` }}><small>0{index + 1}</small>{step}</span>
+        ))}
+      </div>
+      <div className="inq-think inq-think--pills">
+        {inquiry.thinking.map((item) => (
+          <article key={item.title}><strong>{item.title}</strong><p>{item.desc}</p></article>
+        ))}
+      </div>
+      <InquiryEffects effects={inquiry.effects} />
+    </div>
+  );
+}
+
+function InquiryBoard({ project, copy }) {
+  const inquiry = project.inquiry;
+  if (!inquiry) return null;
+  const style = project.caseStyle || "website";
+  return (
+    <section className={`case-block case-motion inquiry inquiry--${style}`} aria-labelledby="sec-inquiry">
+      <header className="case-block__head">
+        <span>02</span>
+        <div><strong>{copy.inquiry}</strong><small>CARE / THINK / EFFECT</small></div>
+      </header>
+      {inquiry.judgment && <p className="case-block__lead inquiry__judgment">{inquiry.judgment}</p>}
+      <InquiryKey />
+      <InquiryMethods methods={inquiry.methods} />
+      {style === "mobile" && <InquiryJourney inquiry={inquiry} />}
+      {style === "admin" && <InquirySystem inquiry={inquiry} />}
+      {style === "website" && <InquiryNarrative inquiry={inquiry} />}
+    </section>
+  );
+}
+
+function CoreMoves({ items, caseStyle }) {
+  if (!items?.length) return null;
+  return (
+    <ul className={`case-moves case-moves--${caseStyle || "default"}`}>
+      {items.map((item, index) => (
+        <li key={item.title || index}>
+          <small>{String(index + 1).padStart(2, "0")}</small>
+          <strong>{item.title}</strong>
+          {item.rationale && <em>{item.rationale}</em>}
+          <p>{item.solution}</p>
+          <b>{item.impact}</b>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CaseLeadership({ leadership, caseStyle, copy }) {
+  if (!leadership?.pillars?.length) return null;
+  return (
+    <section className={`case-block case-motion case-leadership case-leadership--${caseStyle || "default"}`} aria-labelledby="sec-leadership">
+      <header className="case-block__head">
+        <span>03</span>
+        <div><strong>{copy.leadership}</strong><small>LEADERSHIP / DECISION PATH</small></div>
+      </header>
+      {leadership.intro && <p className="case-block__lead">{leadership.intro}</p>}
+      <ol className="case-leadership__grid">
+        {leadership.pillars.map((item, index) => (
+          <li key={item.title}>
+            <small>{String(index + 1).padStart(2, "0")} / {item.lens}</small>
+            <strong>{item.title}</strong>
+            <p>{item.action}</p>
+            <b>{item.proof}</b>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ProjectDetail({ project, onClose, copy }) {
   const detailRef = useRef(null);
   const [preview, setPreview] = useState(null);
   useCloseOnPortfolioNavigate(onClose);
@@ -1909,16 +2448,12 @@ function ProjectDetail({ project, onClose }) {
   }, [project]);
 
   const meta = project.meta || {};
-  const pains = project.pains || [];
   const coreDesign = project.coreDesign || [];
   const contributionSplit = project.contributionSplit || [];
   const timelinePhases = project.timeline || [];
   const capabilities = project.capabilities || [];
   const outcomeBars = project.outcomeBars || [];
   const stack = project.stack || [];
-  const research = project.research || [];
-  const insights = project.insights || [];
-  const principles = project.principles || [];
   const visualSummary = CASE_VISUAL_SUMMARIES[project.caseStyle] || CASE_VISUAL_SUMMARIES.website;
   const maxSplit = Math.max(...contributionSplit.map((s) => s.value), 1);
 
@@ -1943,13 +2478,6 @@ function ProjectDetail({ project, onClose }) {
           {meta.status && <div><i>项目状态</i><b>{meta.status}</b></div>}
           {meta.year && <div><i>完成时间</i><b>{meta.year}</b></div>}
         </section>
-        {(meta.scope || meta.collaboration) && (
-          <section className="case-meta case-meta--wide case-motion" aria-label="主导范围与协作方式">
-            {meta.scope && <div><i>主导范围</i><b>{meta.scope}</b></div>}
-            {meta.collaboration && <div><i>协作方式</i><b>{meta.collaboration}</b></div>}
-          </section>
-        )}
-
         <section className="case-metrics case-motion" aria-label="关键指标">
           {project.metrics.map(([value, label]) => <span key={label}><strong>{value}</strong><small>{label}</small></span>)}
         </section>
@@ -1965,49 +2493,17 @@ function ProjectDetail({ project, onClose }) {
         </section>
 
         <section className="case-block case-motion" aria-labelledby="sec-01">
-          <header className="case-block__head"><span>01</span><div><strong>项目概述</strong><small>PROJECT OVERVIEW</small></div></header>
+          <header className="case-block__head"><span>01</span><div><strong>{copy.overview}</strong><small>PROJECT OVERVIEW</small></div></header>
           <p className="case-block__lead">{project.overview}</p>
-          {project.background && <p className="case-block__support">{project.background}</p>}
-          {project.disclaimer && <p className="case-disclaimer">{project.disclaimer}</p>}
         </section>
 
-        <section className="case-block case-motion" aria-labelledby="sec-02">
-          <header className="case-block__head"><span>02</span><div><strong>项目目标</strong><small>PROJECT GOAL</small></div></header>
-          <div className="case-pains">
-            <div className="case-pains__list">
-              {pains.map((pain) => (
-                <article className="pain-card" key={pain.tag}>
-                  <span>{pain.tag}</span>
-                  <strong>{pain.title}</strong>
-                  <p>{pain.desc}</p>
-                </article>
-              ))}
-            </div>
-            <aside className="case-goal">
-              <small>GOAL</small>
-              <p>{project.goal}</p>
-            </aside>
-          </div>
-        </section>
+        <InquiryBoard project={project} copy={copy} />
 
-        {(research.length > 0 || insights.length > 0) && (
-          <section className="case-block case-motion" aria-labelledby="sec-research">
-            <header className="case-block__head"><span>03</span><div><strong>研究与洞察</strong><small>RESEARCH &amp; INSIGHTS</small></div></header>
-            <div className="case-research">
-              {research.map((item) => (
-                <article key={`${item.method}-${item.sample}`}>
-                  <div><small>{item.method}</small><b>{item.sample}</b></div>
-                  <p>{item.finding}</p>
-                </article>
-              ))}
-            </div>
-            {insights.length > 0 && <ol className="case-insights">{insights.map((item, index) => <li key={item}><span>0{index + 1}</span><p>{item}</p></li>)}</ol>}
-          </section>
-        )}
+        <CaseLeadership leadership={project.leadership} caseStyle={project.caseStyle} copy={copy} />
 
-        <section className="case-block case-motion" aria-labelledby="sec-03">
-          <header className="case-block__head"><span>04</span><div><strong>我的角色与主导范围</strong><small>MY ROLE / OWNERSHIP</small></div></header>
-          <p className="case-block__lead">{project.contribution}</p>
+        <section className="case-block case-motion" aria-labelledby="sec-ownership">
+          <header className="case-block__head"><span>04</span><div><strong>{copy.ownership}</strong><small>OWNERSHIP</small></div></header>
+          {project.ownership && <p className="case-block__lead">{project.ownership}</p>}
           <ul className="case-tags">
             {project.contributionTags.map((tag) => <li key={tag}>{tag}</li>)}
           </ul>
@@ -2024,44 +2520,14 @@ function ProjectDetail({ project, onClose }) {
           )}
         </section>
 
-        <section className="case-block case-motion" aria-labelledby="sec-04">
-          <header className="case-block__head"><span>05</span><div><strong>核心设计</strong><small>CORE DESIGN</small></div></header>
-          <ul className="case-core">
-            {coreDesign.map((item, index) => (
-              <li key={index}>
-                <div className="case-core__no">{String(index + 1).padStart(2, "0")}</div>
-                <div className="case-core__body">
-                  <div className="case-core__problem">
-                    <small>PROBLEM</small>
-                    <strong>{item.problem}</strong>
-                  </div>
-                  <div className="case-core__arrow" aria-hidden="true">→</div>
-                  <div className="case-core__insight">
-                    <small>INSIGHT</small>
-                    <span>{item.insight}</span>
-                  </div>
-                  <div className="case-core__arrow" aria-hidden="true">→</div>
-                  <div className="case-core__solution">
-                    <small>SOLUTION</small>
-                    <p>{item.solution}</p>
-                  </div>
-                  <div className="case-core__impact">{item.impact}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
+        <section className="case-block case-motion" aria-labelledby="sec-core-moves">
+          <header className="case-block__head"><span>05</span><div><strong>{copy.coreDesign}</strong><small>CORE MOVES</small></div></header>
+          <CoreMoves items={coreDesign} caseStyle={project.caseStyle} />
         </section>
 
-        {principles.length > 0 && (
-          <section className="case-block case-motion" aria-labelledby="sec-principles">
-            <header className="case-block__head"><span>06</span><div><strong>设计原则</strong><small>DESIGN PRINCIPLES</small></div></header>
-            <div className="case-principles">{principles.map((item, index) => <article key={item.title}><span>0{index + 1}</span><strong>{item.title}</strong><p>{item.desc}</p></article>)}</div>
-          </section>
-        )}
-
         {timelinePhases.length > 0 && (
-          <section className="case-block case-motion" aria-labelledby="sec-05a">
-            <header className="case-block__head"><span>07</span><div><strong>设计流程</strong><small>PROCESS</small></div></header>
+          <section className="case-block case-motion" aria-labelledby="sec-process">
+            <header className="case-block__head"><span>06</span><div><strong>{copy.process}</strong><small>PROCESS</small></div></header>
             <ol className="case-timeline">
               {timelinePhases.map((phase, index) => (
                 <li key={index}>
@@ -2077,8 +2543,8 @@ function ProjectDetail({ project, onClose }) {
           </section>
         )}
 
-        <section className="case-block case-motion" aria-labelledby="sec-05b">
-          <header className="case-block__head"><span>08</span><div><strong>设计与实现</strong><small>DESIGN TO PRODUCT</small></div></header>
+        <section className="case-block case-motion" aria-labelledby="sec-capability">
+          <header className="case-block__head"><span>07</span><div><strong>{copy.capability}</strong><small>CAPABILITY</small></div></header>
           {capabilities.length > 0 && (
             <div className="case-cap">
               <CapabilityRadar data={capabilities} />
@@ -2089,9 +2555,9 @@ function ProjectDetail({ project, onClose }) {
           )}
         </section>
 
-        <section className="case-block case-motion" aria-labelledby="sec-06">
-          <header className="case-block__head"><span>09</span><div><strong>项目成果</strong><small>PROJECT OUTCOME</small></div></header>
-          <p className="case-block__lead">{project.outcome}</p>
+        <section className="case-block case-motion" aria-labelledby="sec-outcome">
+          <header className="case-block__head"><span>08</span><div><strong>{copy.outcome}</strong><small>OUTCOME</small></div></header>
+          {project.outcome && <p className="case-block__lead">{project.outcome}</p>}
           {outcomeBars.length > 0 && (
             <div className="case-outcome" aria-label="成果可视化">
               {outcomeBars.map((bar) => (
@@ -2110,7 +2576,7 @@ function ProjectDetail({ project, onClose }) {
   );
 }
 
-function ProjectsSection() {
+function ProjectsSection({ items, copy }) {
   const [detail, setDetail] = useState(null);
   useEffect(() => {
     const close = () => setDetail(null);
@@ -2121,15 +2587,15 @@ function ProjectsSection() {
     <section className="chapter chapter-projects" id="projects" data-chapter="3">
       <div className="projects-panel scene-panel" data-narrative-anchor="projects" data-thread-x="0.92" data-thread-y="0.12">
         <header className="scene-heading motion-item" data-motion="fromRight">
-          <p className="eyebrow">SELECTED CASES / PRODUCT &amp; UX</p>
-          <h2>从业务问题，到可落地的产品体验。</h2>
-          <p>挑选不同复杂度的项目，展示我如何定义问题、组织系统、设计关键体验，并把方案推进到落地。</p>
+          <p className="eyebrow">{copy.eyebrow}</p>
+          <h2>{copy.pageTitle}</h2>
+          <p>{copy.description}</p>
         </header>
         <div className="project-cover-grid motion-item" data-motion="cardCascade">
-          {projects.map((item, index) => (
+          {items.map((item, index) => (
             <button type="button" className={`project-cover-card project-cover-card--${index + 1} interactive-card`} key={item.id} onClick={() => setDetail(item)}>
-              <div className="project-cover-card__media" style={{ "--project-cover": `url("${item.image}")` }}>
-                <img className="project-cover-card__art" src={item.image} alt={`${item.title} 项目封面`} />
+              <div className="project-cover-card__media" style={{ "--project-cover": `url("${responsiveImageUrl(item.image, 960)}")` }}>
+                <ResponsiveImage className="project-cover-card__art" src={item.image} sizes="(max-width: 760px) 92vw, 33vw" alt={`${item.title} 项目封面`} />
               </div>
               <div className="project-cover-card__copy">
                 <div className="project-cover-card__meta"><span>0{index + 1} / {item.code}</span><ArrowUpRight size={15} aria-hidden="true" /></div>
@@ -2142,7 +2608,7 @@ function ProjectsSection() {
           ))}
         </div>
       </div>
-      {detail && <ProjectDetail project={detail} onClose={() => setDetail(null)} />}
+      {detail && <ProjectDetail project={detail} copy={copy.modal} onClose={() => setDetail(null)} />}
     </section>
   );
 }
@@ -2180,7 +2646,7 @@ function GraphicCarousel({ items, onOpen }) {
             <div className="graphic-column__track" onMouseEnter={pauseColumn} onMouseLeave={resumeColumn}>
               {(() => {
                 const loopUnit = fillLoopUnit(column);
-                return [...loopUnit, ...loopUnit].map((work, index) => <button type="button" className="graphic-slide interactive-card" key={`${work.src}-${columnIndex}-${index}`} onClick={() => onOpen(work)}><img src={work.src} alt={work.title} loading="lazy" /><span><small>{work.type}</small><strong>{work.title}</strong></span></button>);
+                return [...loopUnit, ...loopUnit].map((work, index) => <button type="button" className="graphic-slide interactive-card" key={`${work.src}-${columnIndex}-${index}`} onClick={() => onOpen(work)}><ResponsiveImage src={work.src} sizes="220px" alt={work.title} /><span><small>{work.type}</small><strong>{work.title}</strong></span></button>);
               })()}
             </div>
           </div>
@@ -2190,16 +2656,22 @@ function GraphicCarousel({ items, onOpen }) {
   );
 }
 
-function GraphicSection() {
+function GraphicSection({ works: initialWorks, copy }) {
   const [selected, setSelected] = useState(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [items, setItems] = useState(works);
+  const [items, setItems] = useState(initialWorks);
   const [activeWork, setActiveWork] = useState(null);
   useEffect(() => {
     const close = () => { setSelected(null); setArchiveOpen(false); };
     window.addEventListener("portfolio:navigate", close);
     return () => window.removeEventListener("portfolio:navigate", close);
   }, []);
+
+  useEffect(() => {
+    setItems(initialWorks);
+    setSelected((current) => current ? initialWorks.find((work) => work.src === current.src) || null : null);
+    setActiveWork((current) => current ? initialWorks.find((work) => work.src === current.src) || null : null);
+  }, [initialWorks]);
 
   useEffect(() => {
     let alive = true;
@@ -2209,8 +2681,9 @@ function GraphicSection() {
         if (!alive || !Array.isArray(files) || !files.length) return;
         const list = files.map((file, index) => {
           const base = file.replace(/\.(png|jpe?g|webp)$/i, "");
-          const fallback = works.find((w) => w.src.includes(base)) || {};
+          const fallback = initialWorks.find((w) => w.src === `/assets/library/05-graphic/${file}` || w.src.endsWith(`/${file}`)) || {};
           return {
+            ...fallback,
             src: `/assets/library/05-graphic/${file}`,
             title: fallback.title || base,
             type: fallback.type || "GRAPHIC / ARCHIVE",
@@ -2220,7 +2693,7 @@ function GraphicSection() {
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [initialWorks]);
 
   // Keep the wall input stable while hover copy changes. Recreating this array on
   // every hover used to tear down the Web Animation and restart each column at 0.
@@ -2238,7 +2711,7 @@ function GraphicSection() {
   return (
     <section className="chapter chapter-graphic" id="graphic" data-chapter="4">
       <div className="graphic-panel scene-panel" data-narrative-anchor="graphic" data-thread-x="0.08" data-thread-y="0.12">
-        <header className="scene-heading motion-item" data-motion="fromLeft"><p className="eyebrow">GRAPHIC ARCHIVE / {String(items.length).padStart(2, "0")}</p><h2>在界面之外，<br />继续构建<br />设计语言。</h2><p>从品牌视觉、海报与版式，到图形系统与动态实验——证明我不只处理复杂产品问题，同样能驾驭多元视觉表达。</p><button type="button" className="chapter-action" onClick={() => setArchiveOpen(true)}>EXPLORE ARCHIVE / 浏览完整作品</button></header>
+        <header className="scene-heading motion-item" data-motion="fromLeft"><p className="eyebrow">{copy.eyebrow} / {String(items.length).padStart(2, "0")}</p><h2>{copy.pageTitle}</h2><p>{copy.description}</p><button type="button" className="chapter-action" onClick={() => setArchiveOpen(true)}>EXPLORE ARCHIVE / {copy.buttonText}</button></header>
         <div className="graphic-drift motion-item" data-motion="stageReveal">
           <DriftWall
             items={driftItems}
@@ -2262,11 +2735,11 @@ function GraphicSection() {
         </div>
       </div>
       {archiveOpen && (
-        <InfoOverlay eyebrow="GRAPHIC ARCHIVE" title={`视觉定格 / ${String(items.length).padStart(2, "0")}`} onClose={() => setArchiveOpen(false)} className="graphic-overlay">
+        <InfoOverlay eyebrow={copy.modal.eyebrow} title={`${copy.modal.title} / ${String(items.length).padStart(2, "0")}`} onClose={() => setArchiveOpen(false)} className="graphic-overlay">
           <div className="archive-grid">
             {items.map((work, index) => (
               <button type="button" className="archive-item" key={work.src} onClick={() => setSelected(work)}>
-                <img src={work.src} alt={work.title} loading="lazy" />
+                <ResponsiveImage src={work.src} sizes="(max-width: 760px) 50vw, 25vw" alt={work.title} />
                 <span><small>0{index + 1} · {work.type}</small><strong>{work.title}</strong></span>
               </button>
             ))}
@@ -2276,25 +2749,55 @@ function GraphicSection() {
       {selected && (
         <div className="work-lightbox" role="dialog" aria-modal="true" aria-label={selected.title} onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
           <FixedClose onClose={() => setSelected(null)} level={520} />
-          <ZoomableImage src={selected.src} alt={selected.title} />
-          <p>{selected.title}<small>{selected.type}</small></p>
+          <div className="work-detail" style={{ "--work-backdrop": `url("${encodeURI(selected.src)}")` }} onClick={(e) => e.stopPropagation()}>
+            <div className="work-detail__backdrop" aria-hidden="true" />
+            <div className="work-detail__media"><ZoomableImage src={selected.src} alt={selected.title} /></div>
+            <article className="work-detail__copy">
+              <span className="work-detail__index">VISUAL NOTES / {String(items.indexOf(selected) + 1).padStart(2, "0")}</span>
+              <small>{selected.type}</small>
+              <h3>{selected.title}</h3>
+              <p className="work-detail__brief">{selected.brief || copy.modal.detailFallback}</p>
+              <div className="work-detail__notes">
+                <section><span>01 / 用途</span><p>{selected.purpose || "作为视觉档案沉淀，用于展示不同媒介中的图形表达与版式判断。"}</p></section>
+                <section><span>02 / 呈现</span><p>{selected.concept || "从画面主体出发，通过色彩、构图与信息层级组织观看路径。"}</p></section>
+                {selected.craft && <section><span>03 / 手法</span><p>{selected.craft}</p></section>}
+              </div>
+              <div className="work-detail__tags">{(selected.keywords || ["视觉研究", "图文关系", "构图" ]).map((keyword) => <span key={keyword}>{keyword}</span>)}</div>
+              <p className="work-detail__hint">{copy.modal.detailHint}</p>
+            </article>
+          </div>
         </div>
       )}
     </section>
   );
 }
 
-function VibeSection() {
+function VibeSection({ items, copy }) {
   const [active, setActive] = useState(0);
   const [detailOpen, setDetailOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [localNotice, setLocalNotice] = useState(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const detailRef = useRef(null);
+  const introVideoRef = useRef(null);
   useEffect(() => {
     const close = () => { setDetailOpen(false); setQrOpen(false); setLocalNotice(null); };
     window.addEventListener("portfolio:navigate", close);
     return () => window.removeEventListener("portfolio:navigate", close);
   }, []);
+  // Reset the intro video state whenever the case closes or the active project changes.
+  useEffect(() => { if (!detailOpen) setVideoPlaying(false); }, [detailOpen]);
+  useEffect(() => { setVideoPlaying(false); }, [active]);
+  // Kick off playback once the <video> mounts; browsers otherwise often block the
+  // silent autoPlay of a clip that carries an audio track.
+  useEffect(() => {
+    if (videoPlaying && introVideoRef.current) {
+      const el = introVideoRef.current;
+      el.currentTime = 0;
+      const p = el.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    }
+  }, [videoPlaying]);
 
   useLayoutEffect(() => {
     if (!detailOpen || !detailRef.current) return undefined;
@@ -2304,14 +2807,14 @@ function VibeSection() {
     return () => timeline.kill();
   }, [active, detailOpen]);
 
-  const project = vibeProjects[active];
+  const project = items[active];
 
   return (
     <section className="chapter chapter-vibe" id="vibe" data-chapter="5">
       <div className="vibe-showcase scene-panel" data-narrative-anchor="vibe" data-thread-x="0.5" data-thread-y="0.08">
-        <header className="scene-heading scene-heading--center motion-item" data-motion="heroZoom"><p className="eyebrow">VIBE CODING / PRODUCT BUILDER LAB</p><h2>不只使用 AI，而是把它变成产品。</h2><p>从想法、提示词、交互到前端实现，我用 AI 缩短从设计判断到可运行产品的距离。这里展示的不是概念图，而是做过、跑过、持续迭代的个人产品。</p></header>
+        <header className="scene-heading scene-heading--center motion-item" data-motion="heroZoom"><p className="eyebrow">{copy.eyebrow}</p><h2>{copy.pageTitle}</h2><p>{copy.description}</p></header>
         <div className="vibe-card-row motion-item" data-motion="cardCascade">
-          {vibeProjects.map((item, index) => (
+          {items.map((item, index) => (
             <TiltedCard
               key={item.code}
               className="vibe-tilted-wrap"
@@ -2325,7 +2828,7 @@ function VibeSection() {
             >
               <article className="vibe-preview-card interactive-card">
                 <button type="button" className="vibe-preview-card__media" onClick={() => { setActive(index); setDetailOpen(true); }}>
-                  <img src={item.image} alt={`${item.title} 预览`} />
+                  <ResponsiveImage src={item.image} sizes="(max-width: 760px) 92vw, 33vw" alt={`${item.title} 预览`} />
                   <span>{item.code}</span>
                 </button>
                 <div>
@@ -2333,7 +2836,7 @@ function VibeSection() {
                   <h3>{item.title}</h3>
                   <p>{item.description}</p>
                   <div className="vibe-card-actions">
-                    <button type="button" className="vibe-btn-detail" onClick={() => { setActive(index); setDetailOpen(true); }}>构建过程</button>
+                    <button type="button" className="vibe-btn-detail" onClick={() => { setActive(index); setDetailOpen(true); }}>创作过程</button>
                     {item.wechat ? (
                       <button type="button" className="vibe-btn-visit" onClick={() => { setActive(index); setQrOpen(true); }}>打开产品</button>
                     ) : item.link && item.link !== "#" ? (
@@ -2351,9 +2854,39 @@ function VibeSection() {
       {detailOpen && (
         <InfoOverlay eyebrow={`${project.code} / CASE STUDY`} title={project.title} onClose={() => setDetailOpen(false)} className="vibe-detail-overlay">
           <div className="vibe-case" ref={detailRef} onClick={(e) => { if (e.target === e.currentTarget) setDetailOpen(false); }}>
-            <div className="vibe-case__media vibe-detail-motion" onClick={(e) => e.stopPropagation()}>
-              {project.mediaType === "video" ? <video src={project.image} autoPlay muted loop playsInline /> : <img src={project.image} alt={`${project.title} 封面`} />}
+            <div className={`vibe-case__media vibe-detail-motion${project.introVideo && videoPlaying ? " is-playing-intro" : ""}`} onClick={(e) => e.stopPropagation()}>
+              {project.mediaType === "video" ? (
+                <video src={project.image} autoPlay muted loop playsInline />
+              ) : (
+                <ResponsiveImage src={project.image} sizes="(max-width: 760px) 100vw, 60vw" alt={`${project.title} 封面`} />
+              )}
               <div className="vibe-case__overlay" />
+              {project.introVideo && videoPlaying && (
+                <video
+                  ref={introVideoRef}
+                  className="vibe-case__intro-video"
+                  src={project.introVideo}
+                  poster={project.image}
+                  controls
+                  autoPlay
+                  playsInline
+                  onClick={(e) => e.stopPropagation()}
+                  onEnded={() => setVideoPlaying(false)}
+                />
+              )}
+              {project.introVideo && !videoPlaying && (
+                <button
+                  type="button"
+                  className="vibe-case__intro-trigger"
+                  onClick={() => setVideoPlaying(true)}
+                  aria-label="查看视频介绍"
+                >
+                  <span className="vibe-case__intro-play" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                  </span>
+                  <span className="vibe-case__intro-label">查看视频介绍</span>
+                </button>
+              )}
               <div className="vibe-case__title">
                 <span>{project.code}</span>
                 <h3>{project.title}</h3>
@@ -2363,27 +2896,56 @@ function VibeSection() {
             <div className="vibe-case__content" onClick={(e) => e.stopPropagation()}>
               <div className="vibe-case__main">
                 <div className="vibe-case__block vibe-detail-motion">
-                  <h4>背景</h4>
-                  <p>{project.background}</p>
+                  <h4>{copy.modal.pain}</h4>
+                  <p>{project.pain}</p>
                 </div>
                 <div className="vibe-case__block vibe-detail-motion">
-                  <h4>问题</h4>
-                  <p>{project.problem}</p>
+                  <h4>{copy.modal.approach}</h4>
+                  <p>{project.approach}</p>
                 </div>
                 <div className="vibe-case__block vibe-detail-motion">
-                  <h4>方案</h4>
-                  <p>{project.solution}</p>
+                  <h4>{copy.modal.research}</h4>
+                  <p><b>对象：</b>{project.research?.who}</p>
+                  <p><b>方法：</b>{project.research?.method}</p>
+                  <p><b>回写进 PRD：</b>{project.research?.finding}</p>
                 </div>
-                <section className="vibe-build-notes vibe-detail-motion" aria-label="设计推演与问题解决">
-                  <header><small>BUILD NOTES</small><h4>从想法到可用产品</h4></header>
+                {project.prd && (
+                  <section className="vibe-prd vibe-detail-motion" aria-label="PRD 文档">
+                    <header><small>PRD</small><h4>{copy.modal.prdTitle}</h4></header>
+                    <p>{project.prd.summary}</p>
+                    <div className="vibe-prd__grid">
+                      <article>
+                        <h5>需求说明</h5>
+                        <ul>{project.prd.requirements.map((item) => <li key={item}>{item}</li>)}</ul>
+                      </article>
+                      <article>
+                        <h5>技术架构</h5>
+                        <ul>{project.prd.architecture.map((item) => <li key={item}>{item}</li>)}</ul>
+                      </article>
+                    </div>
+                  </section>
+                )}
+                {project.pipeline && (
+                  <ol className="vibe-pipeline vibe-detail-motion" aria-label="从构想到可运行">
+                    {project.pipeline.map((item) => (
+                      <li key={item.step}>
+                        <span>{item.step}</span>
+                        <strong>{item.title}</strong>
+                        <p>{item.desc}</p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                <section className="vibe-build-notes vibe-detail-motion" aria-label="构建中的关键取舍">
+                  <header><small>BUILD NOTES</small><h4>{copy.modal.notes}</h4></header>
                   {project.buildNotes.map((note) => (
                     <article key={note.step}>
                       <span>{note.step}</span>
                       <div>
                         <h5>{note.title}</h5>
-                        <p><b>为什么这样做：</b>{note.thinking}</p>
-                        <p><b>遇到的问题：</b>{note.obstacle}</p>
-                        <p><b>如何解决：</b>{note.resolution}</p>
+                        <p><b>判断：</b>{note.thinking}</p>
+                        <p><b>关键约束：</b>{note.obstacle}</p>
+                        <p><b>设计决策：</b>{note.resolution}</p>
                       </div>
                     </article>
                   ))}
@@ -2391,11 +2953,11 @@ function VibeSection() {
               </div>
               <aside className="vibe-case__side">
                 <div className="vibe-case__block vibe-detail-motion">
-                  <h4>核心亮点</h4>
+                  <h4>{copy.modal.highlights}</h4>
                   <ul>{project.highlights.map((h) => <li key={h}>{h}</li>)}</ul>
                 </div>
                 <div className="vibe-case__block vibe-detail-motion">
-                  <h4>技术栈</h4>
+                  <h4>{copy.modal.stack}</h4>
                   <div className="vibe-case__stack">{project.stack.map((s) => <span key={s}>{s}</span>)}</div>
                 </div>
                 <div className="vibe-case__actions vibe-detail-motion">
@@ -2421,22 +2983,22 @@ function VibeSection() {
           <div className="local-app-modal">
             <FixedClose onClose={() => setLocalNotice(null)} level={520} />
             <div className="local-app-modal__signal"><AppWindow size={28} strokeWidth={1.6} /><i /></div>
-            <small>LOCAL BUILD / PRIVATE PREVIEW</small>
-            <h3 id="local-app-title">这是一款本地运行的作品</h3>
-            <p><strong>{localNotice.title}</strong> 暂未开放公网体验。欢迎通过右上角「合作与交流」联系我，我会为你提供现场演示或体验版本。</p>
+            <small>本地构建 / 私人预览</small>
+            <h3 id="local-app-title">{copy.modal.localTitle}</h3>
+            <p><strong>{localNotice.title}</strong> {copy.modal.localDescription}</p>
             <div className="local-app-modal__meta">
               <span><CircleGauge size={15} />完整交互演示</span>
               <span><MessageCircle size={15} />联系作者体验</span>
             </div>
             <div className="local-app-modal__actions">
-              <button type="button" onClick={() => setLocalNotice(null)}>稍后再看</button>
-              <a href="mailto:zen92@foxmail.com?subject=作品体验咨询">联系作者 <ArrowUpRight size={15} /></a>
+              <button type="button" onClick={() => setLocalNotice(null)}>{copy.modal.later}</button>
+              <a href="mailto:zen92@foxmail.com?subject=作品体验咨询">{copy.modal.contact} <ArrowUpRight size={15} /></a>
             </div>
           </div>
         </div>
       )}
       <footer className="final-credit motion-item" data-motion="riseSoft">
-        <span>复杂产品、设计系统，或仍停留在想法里的 AI 产品，都可以聊聊。</span>
+        <span>复杂产品、设计系统，或仍处于构想阶段的 AI 产品，欢迎交流。</span>
         <a href="mailto:zen92@foxmail.com">ZEN92@FOXMAIL.COM</a>
       </footer>
     </section>
@@ -2619,8 +3181,38 @@ const motionStates = (kind, targetIndex, total, scrollDir = 1) => {
 };
 
 export function App() {
+  const [content, setContent] = useState(() => resolveContent());
+  const contentRef = useRef(content);
+  const copy = useMemo(() => Object.fromEntries((content.siteCopy || []).map((page) => [page.id, page])), [content.siteCopy]);
+  const profileData = content.profileModal?.[0];
+  const careerData = content.careerStages || [];
   const [activeChapter, setActiveChapter] = useState(0);
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+  useEffect(() => {
+    const update = (event) => setContent(resolveContent(event.detail));
+    const updateFromStorage = (event) => {
+      if (event.key === "zen-portfolio-content-v1") setContent(resolveContent());
+    };
+    window.addEventListener("portfolio:content-updated", update);
+    window.addEventListener("storage", updateFromStorage);
+    const synchronize = async () => {
+      const result = await syncPublishedContent(contentRef.current);
+      if (!result.changed) return;
+      contentRef.current = result.content;
+      setContent(result.content);
+    };
+    synchronize();
+    const refresh = window.setInterval(synchronize, 30000);
+    return () => {
+      window.removeEventListener("portfolio:content-updated", update);
+      window.removeEventListener("storage", updateFromStorage);
+      window.clearInterval(refresh);
+    };
+  }, []);
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const preludeVisualsReady = usePreludeVisualsReady();
   const {
     progress: frameProgress,
     canEnter: framesCanEnter,
@@ -2629,21 +3221,18 @@ export function App() {
     retry: retryFrames,
     backgroundReady,
     startBackgroundWarm,
-  } = useFrameBootloader();
+  } = useFrameBootloader(preludeVisualsReady);
   const [loaderVisible, setLoaderVisible] = useState(true);
   const [experienceEntered, setExperienceEntered] = useState(false);
+  const [entryChromeVisible, setEntryChromeVisible] = useState(false);
   const shellRef = useRef(null);
-  // Shared flag so programmatic navigation (nav clicks) can suspend scroll snapping.
-  const snapControlRef = useRef({ navigateProgrammatic: false });
-  const navigateTimerRef = useRef(0);
-  useScrollSnap(6, snapControlRef);
-
   const enterExperience = useCallback(() => {
     if (experienceEntered) return;
     setExperienceEntered(true);
     startBackgroundWarm();
-    window.setTimeout(() => setLoaderVisible(false), 1250);
+
   }, [experienceEntered, startBackgroundWarm]);
+  const finishExperienceEntry = useCallback(() => setLoaderVisible(false), []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("is-loading", loaderVisible);
@@ -2667,7 +3256,7 @@ export function App() {
           ? { index: Number(node.dataset.chapter), distance }
           : closest;
       }, { index: 0, distance: Number.POSITIVE_INFINITY });
-      setActiveChapter(clamp(current.index, 0, 5));
+      setActiveChapter(clamp(current.index, 0, chapters.length - 1));
     };
     const onScroll = () => {
       if (frame) return;
@@ -2685,7 +3274,7 @@ export function App() {
   const chapterMotionTlRef = useRef(null);
 
   useLayoutEffect(() => {
-    if (!shellRef.current) return undefined;
+    if (!framesReady || !shellRef.current) return undefined;
 
     const allMotionRoots = gsap.utils.toArray(shellRef.current.querySelectorAll(".chapter .motion-item"));
     const allLeafTargets = allMotionRoots.flatMap((el) => {
@@ -2724,14 +3313,23 @@ export function App() {
       if (targets.length > 1 && targets[0] !== el) {
         gsap.set(el, { autoAlpha: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)", clearProps: MOTION_CLEAR });
       }
-      return targets.map((target, targetIndex) => ({
-        el: target,
-        kind,
-        rootIndex,
-        targetIndex,
-        total: targets.length,
-        states: motionStates(kind, targetIndex, targets.length, scrollDir),
-      }));
+      return targets.map((target, targetIndex) => {
+        const states = motionStates(kind, targetIndex, targets.length, scrollDir);
+        // The moving archive and glass cards already contain composited layers.
+        // Blurring their entire subtree during a chapter change adds a large
+        // offscreen render pass on top of the scrolling frame sequence.
+        if (chapterIndex === 4 || chapterIndex === 5) {
+          for (const state of Object.values(states)) delete state.filter;
+        }
+        return {
+          el: target,
+          kind,
+          rootIndex,
+          targetIndex,
+          total: targets.length,
+          states,
+        };
+      });
     });
 
     const activePieces = expand(activeRoots, activeChapter);
@@ -2797,7 +3395,7 @@ export function App() {
       tl.kill();
       if (chapterMotionTlRef.current === tl) chapterMotionTlRef.current = null;
     };
-  }, [activeChapter]);
+  }, [activeChapter, framesReady]);
 
   useEffect(() => {
     const scope = shellRef.current?.querySelector(`.chapter[data-chapter="${activeChapter}"]`);
@@ -2821,45 +3419,21 @@ export function App() {
       };
     });
     return () => cleanups.forEach((cleanup) => cleanup());
-  }, [activeChapter]);
-
-  // Hard-stop scroll at the final chapter — no empty tail beyond page 06.
-  useEffect(() => {
-    const isPhoneLayout = () => window.matchMedia("(max-width: 760px)").matches;
-    const lockTail = () => {
-      if (isPhoneLayout()) return;
-      const pageH = Math.max(1, window.innerHeight);
-      const maxScroll = pageH * 5;
-      if (window.scrollY > maxScroll) {
-        window.scrollTo({ top: maxScroll, behavior: "auto" });
-      }
-    };
-    lockTail();
-    window.addEventListener("scroll", lockTail, { passive: true });
-    window.addEventListener("resize", lockTail);
-    return () => {
-      window.removeEventListener("scroll", lockTail);
-      window.removeEventListener("resize", lockTail);
-    };
-  }, []);
+  }, [activeChapter, framesReady]);
 
   const navigate = (id) => {
     const target = document.getElementById(id);
     if (!target) return;
     const isPhoneLayout = window.matchMedia("(max-width: 760px)").matches;
     const pageH = Math.max(1, window.innerHeight);
-    const maxScroll = pageH * 5;
+    const maxScroll = pageH * (chapters.length - 1);
     const top = isPhoneLayout ? target.offsetTop : Math.min(target.offsetTop, maxScroll);
-    // Suppress scroll-snap briefly so it doesn't fight the smooth programmatic scroll.
-    snapControlRef.current.navigateProgrammatic = true;
-    window.clearTimeout(navigateTimerRef.current);
-    navigateTimerRef.current = window.setTimeout(() => { snapControlRef.current.navigateProgrammatic = false; }, 900);
     window.scrollTo({ top, behavior: "smooth" });
   };
 
   return (
-    <div ref={shellRef} className={`portfolio-shell${experienceEntered ? " is-entered" : ""}`}>
-      <CinematicBackdrop />
+    <div ref={shellRef} className={`portfolio-shell${experienceEntered ? " is-entered" : ""}${entryChromeVisible ? " is-entry-chrome-visible" : ""}`}>
+      {framesReady && <CinematicBackdrop />}
       {loaderVisible && (
         <LoadingScreen
           progress={frameProgress}
@@ -2868,23 +3442,29 @@ export function App() {
           error={frameError}
           onRetry={retryFrames}
           onEnter={enterExperience}
+          onChromeReveal={() => setEntryChromeVisible(true)}
+          onFinish={finishExperienceEntry}
           backgroundReady={backgroundReady}
+          preludeReady={preludeVisualsReady}
         />
       )}
+      <ProfileBadge hidden={navigationOpen} entryVisible={entryChromeVisible} />
+      {framesReady && <>
       <NarrativeThread activeChapter={activeChapter} />
       <Navigation activeChapter={activeChapter} onNavigate={navigate} onMenuChange={setNavigationOpen} />
       <ChapterIndex index={activeChapter} />
       <GuideLine activeChapter={activeChapter} />
-      <ProfileBadge hidden={navigationOpen} />
       {experienceEntered && !backgroundReady && <CinematicLoadingNotice />}
       <main>
-        <AboutSection />
-        <ExperienceSection />
-        <SystemSection />
-        <ProjectsSection />
-        <GraphicSection />
-        <VibeSection />
+        <AboutSection copy={copy.about} profileData={profileData} />
+        <ExperienceSection copy={copy.experience} careerData={careerData} />
+        <SystemSection modules={content.systemModules} copy={copy.wanying} />
+        <ProjectsSection items={content.projects} copy={copy.projects} />
+        <GraphicSection works={content.works} copy={copy.graphic} />
+        <VibeSection items={content.vibeProjects} copy={copy.vibe} />
+        <IpEpilogue />
       </main>
+      </>}
     </div>
   );
 }
